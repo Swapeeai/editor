@@ -20,18 +20,36 @@ When the three Supabase values are set, **Save to library** stores the file in a
 
 Create Video builds a storyboard from the words you type. It uses saved files for the active project when there are any. Saved files have no tags yet, so it matches the title and the file name. If there are no saved files, it uses the sample cards. It does not watch the footage. It does not render or export a video.
 
-## How to run it locally
+## Run on your own computer
 
-Install the packages, then start the app:
+Use this in a terminal on your own computer, in the project folder. You do not need Cursor’s preview.
+
+You need Node.js installed first. Then run:
 
 ```bash
 npm install
+cp .env.example .env.local
+```
+
+On Windows, the copy command is:
+
+```bash
+copy .env.example .env.local
+```
+
+Open `.env.local` and paste your three Supabase values into the empty lines. The names are `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY`. Do not put those values in the README, in chat, or in any file that starts with `NEXT_PUBLIC_` except the anon key, which already has that name.
+
+Never commit `.env.local`. Git is already set to ignore it.
+
+Start the app:
+
+```bash
 npm run dev
 ```
 
-Open [http://localhost:43123](http://localhost:43123). [http://127.0.0.1:43123](http://127.0.0.1:43123) works too.
+That command uses port **43123**. Open the URL the terminal prints. It is usually [http://localhost:43123](http://localhost:43123). [http://127.0.0.1:43123](http://127.0.0.1:43123) works too.
 
-`npm run dev` starts Next.js on port **43123**. It listens on all network interfaces so you can open it from another device on the same network.
+If you change `.env.local` later, stop the app and run `npm run dev` again. Next.js only reads that file when it starts.
 
 ## Pages
 
