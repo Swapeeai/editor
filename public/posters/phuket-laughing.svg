@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360" role="img" aria-label="Sample poster">
+  <rect width="640" height="360" fill="#f4d27a"/>
+  <circle cx="500" cy="110" r="64" fill="#6d4710" opacity="0.25"/>
+  <rect x="48" y="48" width="10" height="180" fill="#6d4710"/>
+  <text x="76" y="84" fill="#6d4710" font-family="Georgia, serif" font-size="18">SAMPLE VIDEO</text>
+  <text x="76" y="250" fill="#6d4710" font-family="Georgia, serif" font-size="32">Laughing</text>
+</svg>

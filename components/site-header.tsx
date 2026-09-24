@@ -9,6 +9,7 @@ const links = [
   { href: "/", label: "Home" },
   { href: "/upload", label: "Upload" },
   { href: "/library", label: "Media Library" },
+  { href: "/create-video", label: "Create Video" },
 ]
 
 export function SiteHeader() {

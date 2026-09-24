@@ -1,37 +1,72 @@
 "use client"
 
+import { useState } from "react"
+import { Button } from "@/components/ui/button"
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { MediaCard } from "@/components/media-card"
 import { useSearchQuery } from "@/components/search-provider"
-import { VideoCard } from "@/components/video-card"
-import { filterSampleVideos, sampleVideos } from "@/lib/sample-videos"
+import { filterSampleMedia, type MediaFilter } from "@/lib/sample-media"
+
+const tabs: { id: MediaFilter; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "video", label: "Videos" },
+  { id: "photo", label: "Photos" },
+]
 
 export function LibraryGrid() {
   const { query } = useSearchQuery()
-  const videos = filterSampleVideos(query)
+  const [mediaFilter, setMediaFilter] = useState<MediaFilter>("all")
+  const items = filterSampleMedia(query, mediaFilter)
+  const inThisTab = filterSampleMedia("", mediaFilter).length
   const trimmed = query.trim()
+  const noun =
+    mediaFilter === "video"
+      ? "videos"
+      : mediaFilter === "photo"
+        ? "photos"
+        : "items"
 
   return (
     <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap gap-2" role="group" aria-label="Media type">
+        {tabs.map((tab) => {
+          const selected = mediaFilter === tab.id
+          return (
+            <Button
+              key={tab.id}
+              type="button"
+              variant={selected ? "default" : "outline"}
+              aria-pressed={selected}
+              onClick={() => setMediaFilter(tab.id)}
+            >
+              {tab.label}
+            </Button>
+          )
+        })}
+      </div>
+
       <p className="text-sm text-muted-foreground">
         {trimmed
-          ? `Showing ${videos.length} of ${sampleVideos.length} sample videos.`
-          : `${sampleVideos.length} sample videos.`}
+          ? `Showing ${items.length} of ${inThisTab} sample ${noun}.`
+          : `${inThisTab} sample ${noun}.`}
       </p>
 
-      {videos.length === 0 ? (
+      {items.length === 0 ? (
         <Card>
           <CardHeader>
             <CardTitle>No matches</CardTitle>
             <CardDescription>
-              No sample titles match “{trimmed}”. Try “laughing” or “pole”.
+              {trimmed
+                ? `No sample ${noun} match “${trimmed}”. Try “laughing” or “food”.`
+                : `No sample ${noun} yet.`}
             </CardDescription>
           </CardHeader>
         </Card>
       ) : (
         <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {videos.map((video) => (
-            <li key={video.id}>
-              <VideoCard video={video} />
+          {items.map((item) => (
+            <li key={item.id}>
+              <MediaCard item={item} />
             </li>
           ))}
         </ul>

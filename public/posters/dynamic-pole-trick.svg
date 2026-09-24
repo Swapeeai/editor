@@ -1,8 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360" role="img" aria-label="Sample poster">
-  <rect width="640" height="360" fill="#243044"/>
-  <rect x="360" y="24" width="8" height="312" fill="#f2c14e"/>
-  <circle cx="300" cy="120" r="28" fill="#f7f1e4"/>
-  <path d="M300 148c40 20 70 10 78 -30" fill="none" stroke="#f7f1e4" stroke-width="12" stroke-linecap="round"/>
-  <path d="M292 176c-20 40 -10 80 20 100" fill="none" stroke="#f7f1e4" stroke-width="12" stroke-linecap="round"/>
-  <text x="32" y="320" fill="#f2c14e" font-family="Georgia, serif" font-size="22">SAMPLE POSTER</text>
-</svg>

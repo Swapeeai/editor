@@ -11,8 +11,11 @@ export default function LibraryPage() {
         <h1 className="text-3xl font-semibold tracking-tight">Media Library</h1>
         <p className="max-w-2xl text-base leading-7 text-muted-foreground">
           These cards are sample placeholders, not your retreat footage. Each
-          one shows a poster image. There is no video file behind them in this
-          version.
+          one is a poster image. There is no photo or video file behind it.
+        </p>
+        <p className="max-w-2xl text-base leading-7 text-muted-foreground">
+          Phuket Pole Camp 2026 is the current camp. Bali Pole Retreat 2025 is
+          a past camp. Use All, Videos, or Photos to narrow the list.
         </p>
       </div>
       <LibraryGrid />

@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Retreat Content Library",
   description:
-    "A private place to preview pole-retreat videos and browse sample clips.",
+    "A private place for pole-retreat photos and videos, plus a sample storyboard.",
 }
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

@@ -10,8 +10,8 @@ export default function UploadPage() {
       <div className="flex flex-col gap-3">
         <h1 className="text-3xl font-semibold tracking-tight">Upload</h1>
         <p className="text-base leading-7 text-muted-foreground">
-          Choose a video file. You will see its name, and a player if this
-          browser can play it.
+          Choose a photo or a video. You will see its name. A video also gets a
+          player if this browser can play it.
         </p>
         <p className="text-base leading-7 text-muted-foreground">
           The preview is temporary. Refresh the page and it is gone. The file
