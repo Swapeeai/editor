@@ -1,3 +1,4 @@
+import { DriveImport } from "@/components/drive-import"
 import { UploadForm } from "@/components/upload-form"
 import { isSupabaseConfigured } from "@/lib/supabase-admin"
 
@@ -18,10 +19,11 @@ export default function UploadPage() {
         </p>
         <p className="text-base leading-7 text-muted-foreground">
           {connected
-            ? "The file belongs to the project selected at the top. After the preview looks right, choose Save to library. Each file must be 50 MB or smaller."
-            : "Supabase is not connected, so this page can only preview a file. Nothing is saved, and the Media Library keeps showing samples."}
+            ? "The file belongs to the project selected at the top. After the preview looks right, choose Save to library. Each file must be 50 MB or smaller. The free Supabase plan holds about 1 GB in total."
+            : "Supabase is not connected, so this page can only preview a file. Nothing is saved, and the Media Library keeps showing samples. Each file must be 50 MB or smaller. The free Supabase plan holds about 1 GB in total."}
         </p>
       </div>
+      <DriveImport connected={connected} />
       <UploadForm connected={connected} />
     </div>
   )

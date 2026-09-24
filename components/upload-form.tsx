@@ -5,12 +5,9 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { useProject } from "@/components/project-provider"
+import { saveFileToLibrary } from "@/lib/save-to-library"
 import { NOT_CONNECTED_MESSAGE } from "@/lib/supabase"
-import {
-  FILE_TOO_BIG_MESSAGE,
-  MAX_UPLOAD_BYTES,
-  plainStorageError,
-} from "@/lib/upload-limit"
+import { FILE_TOO_BIG_MESSAGE, MAX_UPLOAD_BYTES } from "@/lib/upload-limit"
 
 type PreviewKind = "video" | "image"
 
@@ -121,75 +118,16 @@ export function UploadForm({ connected }: { connected: boolean }) {
     setStatus("Saving… the file goes straight to Storage. A long video can take a minute.")
 
     try {
-      const preparedResponse = await fetch("/api/upload", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          projectId: project.id,
-          fileName: file.name,
-          mimeType: file.type,
-          size: file.size,
-        }),
-      })
-      const prepared = (await preparedResponse.json()) as {
-        error?: string
-        id?: string
-        storagePath?: string
-        signedUrl?: string
-        title?: string
-      }
-      if (!preparedResponse.ok || !prepared.signedUrl || !prepared.id || !prepared.storagePath) {
-        setError(prepared.error || "Could not start the upload.")
-        setStatus(null)
-        return
-      }
-
-      const uploadBody = new FormData()
-      uploadBody.append("cacheControl", "3600")
-      uploadBody.append("", file, file.name)
-      const uploaded = await fetch(prepared.signedUrl, {
-        method: "PUT",
-        body: uploadBody,
-      })
-      if (!uploaded.ok) {
-        const details = await uploaded.text()
-        setError(
-          plainStorageError(uploaded.status, details) ||
-            "Could not save the file to Storage. Nothing was added to the library.",
-        )
-        setStatus(null)
-        return
-      }
-
-      const finishedResponse = await fetch("/api/upload/complete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: prepared.id,
-          projectId: project.id,
-          fileName: file.name,
-          mimeType: file.type,
-          storagePath: prepared.storagePath,
-        }),
-      })
-      const finished = (await finishedResponse.json()) as {
-        error?: string
-        item?: { title?: string }
-      }
-      if (!finishedResponse.ok) {
-        setError(finished.error || "Could not save that file.")
-        setStatus(null)
-        return
-      }
-
-      const title = finished.item?.title || prepared.title || file.name
+      const savedFile = await saveFileToLibrary(file, project.id)
       setSaved(true)
       setStatus(
-        `Saved “${title}” to ${project.name}. Open the Media Library to see it.`,
+        `Saved “${savedFile.title}” to ${project.name}. Open the Media Library to see it.`,
       )
-    } catch {
+    } catch (caught) {
       setError(
-        "Could not reach the save service. Check that the app is running, then try again.",
+        caught instanceof Error
+          ? caught.message
+          : "Could not reach the save service. Check that the app is running, then try again.",
       )
       setStatus(null)
     } finally {

@@ -39,7 +39,9 @@ On Windows, the copy command is:
 copy .env.example .env.local
 ```
 
-Open `.env.local` and paste your three Supabase values into the empty lines. The names are `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY`. Do not put those values in the README, in chat, or in any file that starts with `NEXT_PUBLIC_` except the anon key, which already has that name.
+Open `.env.local` and paste your three Supabase values into the empty lines. The names are `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY`. Do not put those values in the README, in chat, or in any file that starts with `NEXT_PUBLIC_` except the public keys, which already have that name.
+
+Google Drive import needs three more empty lines in the same file: `NEXT_PUBLIC_GOOGLE_CLIENT_ID`, `NEXT_PUBLIC_GOOGLE_API_KEY`, and `NEXT_PUBLIC_GOOGLE_APP_ID`. The clicks are in `docs/google-drive-setup.md`. Until those are filled in, the Upload page says Google Drive is not connected yet.
 
 Never commit `.env.local`. Git is already set to ignore it.
 
@@ -122,6 +124,7 @@ There is still no login.
 - The project switcher is in the top bar. Switching clears the search so you see that project’s own cards.
 - The choice is saved in the page address (`?project=`) and in the browser. A refresh keeps it. If the address has no project, the app uses the last one, or Ibiza Pole Retreat.
 - A saved file goes from the browser straight to Storage. The Next.js server only creates the upload link and the library row. The free plan allows 50 MB per file and about 1 GB in total.
+- Import from Google Drive copies the files you pick, one time. It does not keep syncing. It uses the `drive.file` scope, so Google only grants the files you choose in the Picker.
 - Search, the library, and Create Video only look at the active project.
 - Search compares your words with the title, tags, retreat name, year, place, and file name. It ignores capital letters. It does not look inside a file.
 - The search text stays while you move between pages. Refreshing clears the search. Switching project also clears it. The local preview clears on refresh. A saved file does not.
