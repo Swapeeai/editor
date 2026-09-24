@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360" role="img" aria-label="Sample poster">
+  <rect width="640" height="360" fill="#1f4d4a"/>
+  <rect x="300" y="40" width="10" height="250" fill="#d7ebe6"/>
+  <circle cx="250" cy="150" r="36" fill="#f4efe6"/>
+  <rect x="214" y="190" width="72" height="90" rx="20" fill="#f4efe6"/>
+  <path d="M286 210h70" stroke="#f4efe6" stroke-width="10" stroke-linecap="round"/>
+  <circle cx="430" cy="180" r="22" fill="#7dbaae"/>
+  <circle cx="490" cy="200" r="18" fill="#7dbaae"/>
+  <text x="32" y="320" fill="#d7ebe6" font-family="Georgia, serif" font-size="22">SAMPLE POSTER</text>
+</svg>
