@@ -25,7 +25,7 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:43123](http://localhost:43123).
+Open [http://localhost:43123](http://localhost:43123). [http://127.0.0.1:43123](http://127.0.0.1:43123) works too.
 
 `npm run dev` starts Next.js on port **43123**. It listens on all network interfaces so you can open it from another device on the same network.
 
@@ -60,3 +60,4 @@ None of that is in this version.
 - Choosing a file on the Upload page does not add it to the Media Library. The library only shows the five sample cards.
 - Photos are out of this slice. The home page says that in one sentence.
 - There is no login, no database, no Twelve Labs client, and no video editor.
+- The dev server allows `127.0.0.1` as well as `localhost`, so the pages stay interactive at either address.
