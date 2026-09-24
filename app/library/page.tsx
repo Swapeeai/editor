@@ -14,8 +14,8 @@ export default function LibraryPage() {
           one is a poster image. There is no photo or video file behind it.
         </p>
         <p className="max-w-2xl text-base leading-7 text-muted-foreground">
-          Phuket Pole Camp 2026 is the current camp. Bali Pole Retreat 2025 is
-          a past camp. Use All, Videos, or Photos to narrow the list.
+          You only see the project picked at the top. Use All, Videos, or
+          Photos to narrow that list.
         </p>
       </div>
       <LibraryGrid />

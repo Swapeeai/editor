@@ -15,8 +15,9 @@ export default function CreateVideoPage() {
           video for each line.
         </p>
         <p className="text-base leading-7 text-muted-foreground">
-          This plan is matched from tags. It does not watch the footage, and it
-          does not make a finished video. The matching lives in{" "}
+          This plan is matched from tags in the project you picked at the top.
+          It does not pull clips from the other projects. It does not watch the
+          footage, and it does not make a finished video. The matching lives in{" "}
           <code className="rounded bg-muted px-1.5 py-0.5 text-sm">
             lib/find-moments.ts
           </code>

@@ -3,10 +3,9 @@ import type { SampleMedia } from "@/lib/sample-media"
 
 export function MediaCard({ item }: { item: SampleMedia }) {
   const kind = item.mediaType === "video" ? "Video" : "Photo"
-  const camp = item.isCurrent ? "Current camp" : "Past camp"
 
   return (
-    <Card className="h-full" data-media-type={item.mediaType}>
+    <Card className="h-full" data-media-type={item.mediaType} data-project={item.projectId}>
       {/* Poster art only. There is no real photo or video file behind it. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
@@ -18,7 +17,7 @@ export function MediaCard({ item }: { item: SampleMedia }) {
       />
       <CardHeader>
         <p className="text-xs font-medium tracking-wide text-primary uppercase">
-          {kind} · {camp}
+          {kind}
         </p>
         <CardTitle>{item.title}</CardTitle>
         <p className="text-sm text-muted-foreground">

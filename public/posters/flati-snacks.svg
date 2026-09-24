@@ -3,5 +3,5 @@
   <circle cx="500" cy="110" r="64" fill="#fff6f0" opacity="0.25"/>
   <rect x="48" y="48" width="10" height="180" fill="#fff6f0"/>
   <text x="76" y="84" fill="#fff6f0" font-family="Georgia, serif" font-size="18">SAMPLE PHOTO</text>
-  <text x="76" y="250" fill="#fff6f0" font-family="Georgia, serif" font-size="32">Fruit table</text>
+  <text x="76" y="250" fill="#fff6f0" font-family="Georgia, serif" font-size="32">Snack table</text>
 </svg>

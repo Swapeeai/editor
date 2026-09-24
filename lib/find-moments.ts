@@ -8,7 +8,7 @@
 // with that call. Keep the MomentMatch shape so the Create Video page
 // can stay as it is.
 
-import { sampleMedia, type SampleMedia } from "@/lib/sample-media"
+import type { SampleMedia } from "@/lib/sample-media"
 
 export type MomentMatch = {
   phrase: string
@@ -90,10 +90,10 @@ function scoreItem(phrase: string, item: SampleMedia) {
 
   if (
     phraseText.includes("background") &&
-    item.tags.some((tag) => tag === "beach" || tag === "sunset")
+    item.tags.some((tag) => tag === "beach" || tag === "sunset" || tag === "studio")
   ) {
     points += 3
-    reasons.push("a beach or sunset tag for the background")
+    reasons.push("a beach, sunset, or studio tag for the background")
   }
 
   const phraseWords = new Set(meaningfulWords(phrase))
@@ -111,7 +111,7 @@ function scoreItem(phrase: string, item: SampleMedia) {
 
 export function findMoments(
   direction: string,
-  library: SampleMedia[] = sampleMedia,
+  library: SampleMedia[],
 ): MomentMatch[] {
   const used = new Set<string>()
 

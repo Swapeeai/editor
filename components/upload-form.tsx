@@ -4,6 +4,8 @@ import { useEffect, useRef, useState, type ChangeEvent } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { useProject } from "@/components/project-provider"
+import { supabaseSetupMessage } from "@/lib/supabase"
 
 type PreviewKind = "video" | "image"
 
@@ -24,6 +26,7 @@ function previewKind(file: File): PreviewKind | null {
 }
 
 export function UploadForm() {
+  const { project } = useProject()
   const [file, setFile] = useState<File | null>(null)
   const [kind, setKind] = useState<PreviewKind | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
@@ -103,9 +106,10 @@ export function UploadForm() {
           className="h-auto cursor-pointer py-2"
         />
         <p className="text-sm text-muted-foreground">
-          Nothing is uploaded. This preview stays in this tab until you refresh
-          the page.
+          This file will belong to {project.name}. The preview stays on this
+          computer until you refresh the page.
         </p>
+        <p className="text-sm text-muted-foreground">{supabaseSetupMessage()}</p>
       </div>
 
       {error ? (

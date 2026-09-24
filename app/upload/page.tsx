@@ -14,8 +14,9 @@ export default function UploadPage() {
           player if this browser can play it.
         </p>
         <p className="text-base leading-7 text-muted-foreground">
-          The preview is temporary. Refresh the page and it is gone. The file
-          is not added to the Media Library.
+          The preview is for the project selected at the top. Refresh the page
+          and it is gone. Real saving to the cloud starts after you paste the
+          two Supabase values. Nothing is added to the Media Library yet.
         </p>
       </div>
       <UploadForm />

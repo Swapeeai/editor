@@ -1,7 +1,8 @@
 "use client"
 
-import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { ProjectLink } from "@/components/project-link"
+import { ProjectSwitcher } from "@/components/project-switcher"
 import { SearchBox } from "@/components/search-box"
 import { cn } from "@/lib/utils"
 
@@ -19,14 +20,14 @@ export function SiteHeader() {
     <header className="sticky top-0 z-10 border-b border-t-4 border-t-primary bg-background/95 backdrop-blur">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 py-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <Link href="/" className="text-base font-semibold tracking-tight">
+          <ProjectLink href="/" className="text-base font-semibold tracking-tight">
             Retreat Content Library
-          </Link>
+          </ProjectLink>
           <nav className="flex flex-wrap gap-2" aria-label="Main">
             {links.map((link) => {
               const active = pathname === link.href
               return (
-                <Link
+                <ProjectLink
                   key={link.href}
                   href={link.href}
                   className={cn(
@@ -38,11 +39,12 @@ export function SiteHeader() {
                   aria-current={active ? "page" : undefined}
                 >
                   {link.label}
-                </Link>
+                </ProjectLink>
               )
             })}
           </nav>
         </div>
+        <ProjectSwitcher />
         <SearchBox />
       </div>
     </header>

@@ -4,15 +4,37 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { useProject } from "@/components/project-provider"
 import { findMoments } from "@/lib/find-moments"
+import type { ProjectId } from "@/lib/projects"
+import { mediaForProject } from "@/lib/sample-media"
 import { Storyboard, type StoryScene } from "@/components/storyboard"
 
-const example = {
-  title: "Phuket Pole Camp",
-  date: "12–18 October 2026",
-  location: "Phuket, Thailand",
-  direction:
-    "announce the camp date and place over a Phuket background, then a dynamic pole trick, then someone clapping, then teaching, then instructors, then food.",
+const examples: Record<
+  ProjectId,
+  { title: string; date: string; location: string; direction: string }
+> = {
+  ibiza: {
+    title: "Ibiza Pro Retreat",
+    date: "4–10 May 2026",
+    location: "Ibiza, Spain",
+    direction:
+      "announce the camp date and place over an Ibiza background, then a dynamic pole trick, then someone clapping, then teaching, then instructors, then food.",
+  },
+  phuket: {
+    title: "Phuket Pro Retreat",
+    date: "12–18 October 2026",
+    location: "Phuket, Thailand",
+    direction:
+      "announce the camp date and place over a Phuket background, then a dynamic pole trick, then someone clapping, then teaching, then instructors, then food.",
+  },
+  flati: {
+    title: "Flati Fitness",
+    date: "Mondays in October 2026",
+    location: "Flati studio",
+    direction:
+      "announce the class date and place over a studio background, then someone clapping, then teaching, then instructors, then food.",
+  },
 }
 
 function phraseAnnouncesCamp(phrase: string) {
@@ -26,6 +48,13 @@ function phraseAnnouncesCamp(phrase: string) {
 }
 
 export function CreateVideoForm() {
+  const { projectId } = useProject()
+  return <CreateVideoFields key={projectId} />
+}
+
+function CreateVideoFields() {
+  const { projectId, project } = useProject()
+  const example = examples[projectId]
   const [titleText, setTitleText] = useState("")
   const [campDate, setCampDate] = useState("")
   const [campLocation, setCampLocation] = useState("")
@@ -48,7 +77,7 @@ export function CreateVideoForm() {
       return
     }
 
-    const matches = findMoments(direction)
+    const matches = findMoments(direction, mediaForProject(projectId))
     if (matches.length === 0) {
       setError("Add a few words about what you want to see.")
       setScenes(null)
@@ -104,7 +133,7 @@ export function CreateVideoForm() {
             id="video-title"
             value={titleText}
             onChange={(event) => setTitleText(event.target.value)}
-            placeholder="Phuket Pole Camp"
+            placeholder={example.title}
             className="h-10"
           />
         </div>
@@ -117,7 +146,7 @@ export function CreateVideoForm() {
               id="camp-date"
               value={campDate}
               onChange={(event) => setCampDate(event.target.value)}
-              placeholder="12–18 October 2026"
+              placeholder={example.date}
               className="h-10"
             />
           </div>
@@ -129,7 +158,7 @@ export function CreateVideoForm() {
               id="camp-location"
               value={campLocation}
               onChange={(event) => setCampLocation(event.target.value)}
-              placeholder="Phuket, Thailand"
+              placeholder={example.location}
               className="h-10"
             />
           </div>
@@ -147,8 +176,8 @@ export function CreateVideoForm() {
             className="min-h-28"
           />
           <p className="text-sm text-muted-foreground">
-            Use the word “then” between moments. The page splits the direction
-            there and picks a sample for each part.
+            Use the word “then” between moments. Scenes come only from{" "}
+            {project.name}. Other projects are left out.
           </p>
         </div>
 

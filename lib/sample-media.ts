@@ -1,33 +1,42 @@
 // Fake library so the pages are not empty.
 // These are not Suzanne's real photos or videos.
+// Each item belongs to exactly one project.
+
+import type { ProjectId } from "@/lib/projects"
 
 export type MediaType = "video" | "photo"
 
 export type SampleMedia = {
   id: string
+  projectId: ProjectId
   title: string
   mediaType: MediaType
   retreatName: string
   year: number
-  // True for the camp she is working on now. False for an older camp.
-  isCurrent: boolean
   location: string
   tags: string[]
   poster: string
 }
 
 const phuket = {
-  retreatName: "Phuket Pole Camp",
+  projectId: "phuket" as const,
+  retreatName: "Phuket Pro Retreat",
   year: 2026,
-  isCurrent: true,
   location: "Phuket, Thailand",
 }
 
-const bali = {
-  retreatName: "Bali Pole Retreat",
-  year: 2025,
-  isCurrent: false,
-  location: "Canggu, Bali",
+const ibiza = {
+  projectId: "ibiza" as const,
+  retreatName: "Ibiza Pro Retreat",
+  year: 2026,
+  location: "Ibiza, Spain",
+}
+
+const flati = {
+  projectId: "flati" as const,
+  retreatName: "Flati Fitness",
+  year: 2026,
+  location: "Flati studio",
 }
 
 export const sampleMedia: SampleMedia[] = [
@@ -104,117 +113,149 @@ export const sampleMedia: SampleMedia[] = [
     poster: "/posters/phuket-group-hug.svg",
   },
   {
-    id: "phuket-fruit",
-    title: "Sample: Fruit and coffee table",
+    id: "ibiza-sunset",
+    title: "Sample: Ibiza sunset",
     mediaType: "photo",
-    ...phuket,
-    tags: ["food"],
-    poster: "/posters/phuket-fruit.svg",
+    ...ibiza,
+    tags: ["sunset", "beach"],
+    poster: "/posters/ibiza-sunset.svg",
   },
   {
-    id: "phuket-warm-up",
-    title: "Sample: Morning stretch in the studio",
-    mediaType: "video",
-    ...phuket,
-    tags: ["teaching"],
-    poster: "/posters/phuket-warm-up.svg",
-  },
-  {
-    id: "bali-golden-hour",
-    title: "Sample: Bali studio at golden hour",
+    id: "ibiza-beach",
+    title: "Sample: Ibiza beach walk",
     mediaType: "photo",
-    ...bali,
-    tags: ["sunset"],
-    poster: "/posters/bali-golden-hour.svg",
-  },
-  {
-    id: "bali-beach-walk",
-    title: "Sample: Beach walk before class",
-    mediaType: "photo",
-    ...bali,
+    ...ibiza,
     tags: ["beach"],
-    poster: "/posters/bali-beach-walk.svg",
+    poster: "/posters/ibiza-beach.svg",
   },
   {
-    id: "bali-pole-trick",
-    title: "Sample: Dynamic pole trick on the sand",
+    id: "ibiza-pole-trick",
+    title: "Sample: Dynamic pole trick in Ibiza",
     mediaType: "video",
-    ...bali,
+    ...ibiza,
     tags: ["dynamic pole trick"],
-    poster: "/posters/bali-pole-trick.svg",
+    poster: "/posters/ibiza-pole-trick.svg",
   },
   {
-    id: "bali-clapping",
-    title: "Sample: Students clapping on the last day",
+    id: "ibiza-clapping",
+    title: "Sample: Students clapping in Ibiza",
     mediaType: "video",
-    ...bali,
+    ...ibiza,
     tags: ["clapping"],
-    poster: "/posters/bali-clapping.svg",
+    poster: "/posters/ibiza-clapping.svg",
   },
   {
-    id: "bali-maya-teaching",
+    id: "ibiza-teaching",
     title: "Sample: Maya teaching a climb",
     mediaType: "video",
-    ...bali,
+    ...ibiza,
     tags: ["teaching", "instructor"],
-    poster: "/posters/bali-maya-teaching.svg",
+    poster: "/posters/ibiza-teaching.svg",
   },
   {
-    id: "bali-instructors",
-    title: "Sample: Instructors lining up",
+    id: "ibiza-instructors",
+    title: "Sample: Ibiza instructors together",
     mediaType: "photo",
-    ...bali,
+    ...ibiza,
     tags: ["instructor"],
-    poster: "/posters/bali-instructors.svg",
+    poster: "/posters/ibiza-instructors.svg",
   },
   {
-    id: "bali-dinner",
-    title: "Sample: Dinner under the lights",
+    id: "ibiza-dinner",
+    title: "Sample: Dinner in Ibiza",
     mediaType: "photo",
-    ...bali,
+    ...ibiza,
     tags: ["food"],
-    poster: "/posters/bali-dinner.svg",
+    poster: "/posters/ibiza-dinner.svg",
   },
   {
-    id: "bali-laughing",
-    title: "Sample: People laughing at dinner",
+    id: "ibiza-laughing",
+    title: "Sample: People laughing in Ibiza",
     mediaType: "video",
-    ...bali,
+    ...ibiza,
     tags: ["laughing"],
-    poster: "/posters/bali-laughing.svg",
+    poster: "/posters/ibiza-laughing.svg",
   },
   {
-    id: "bali-group-hug",
-    title: "Sample: Group hug on the last night",
+    id: "ibiza-group-hug",
+    title: "Sample: Group hug in Ibiza",
     mediaType: "video",
-    ...bali,
+    ...ibiza,
     tags: ["group hug"],
-    poster: "/posters/bali-group-hug.svg",
+    poster: "/posters/ibiza-group-hug.svg",
   },
   {
-    id: "bali-breakfast",
-    title: "Sample: Breakfast fruit plates",
+    id: "flati-studio",
+    title: "Sample: Flati studio floor",
     mediaType: "photo",
-    ...bali,
-    tags: ["food"],
-    poster: "/posters/bali-breakfast.svg",
+    ...flati,
+    tags: ["studio"],
+    poster: "/posters/flati-studio.svg",
   },
   {
-    id: "bali-drills-laugh",
-    title: "Sample: Laughing between drills",
+    id: "flati-clapping",
+    title: "Sample: Class clapping",
     mediaType: "video",
-    ...bali,
+    ...flati,
+    tags: ["clapping"],
+    poster: "/posters/flati-clapping.svg",
+  },
+  {
+    id: "flati-teaching",
+    title: "Sample: Coach teaching a squat",
+    mediaType: "video",
+    ...flati,
+    tags: ["teaching", "instructor"],
+    poster: "/posters/flati-teaching.svg",
+  },
+  {
+    id: "flati-trainers",
+    title: "Sample: Trainers together",
+    mediaType: "photo",
+    ...flati,
+    tags: ["instructor"],
+    poster: "/posters/flati-trainers.svg",
+  },
+  {
+    id: "flati-snacks",
+    title: "Sample: Snack table",
+    mediaType: "photo",
+    ...flati,
+    tags: ["food"],
+    poster: "/posters/flati-snacks.svg",
+  },
+  {
+    id: "flati-laughing",
+    title: "Sample: Laughing between sets",
+    mediaType: "video",
+    ...flati,
     tags: ["laughing"],
-    poster: "/posters/bali-drills-laugh.svg",
+    poster: "/posters/flati-laughing.svg",
+  },
+  {
+    id: "flati-stretch",
+    title: "Sample: Stretching before class",
+    mediaType: "video",
+    ...flati,
+    tags: ["teaching"],
+    poster: "/posters/flati-stretch.svg",
   },
 ]
 
 export type MediaFilter = "all" | MediaType
 
-export function filterSampleMedia(query: string, mediaFilter: MediaFilter = "all") {
+export function mediaForProject(projectId: ProjectId) {
+  return sampleMedia.filter((item) => item.projectId === projectId)
+}
+
+export function filterSampleMedia(
+  query: string,
+  projectId: ProjectId,
+  mediaFilter: MediaFilter = "all",
+) {
   const needle = query.trim().toLowerCase()
 
-  return sampleMedia.filter((item) => {
+  return mediaForProject(projectId).filter((item) => {
     if (mediaFilter !== "all" && item.mediaType !== mediaFilter) {
       return false
     }

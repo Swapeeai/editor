@@ -1,5 +1,7 @@
 import type { Metadata } from "next"
+import { Suspense } from "react"
 import { Geist, Geist_Mono } from "next/font/google"
+import { ProjectProvider } from "@/components/project-provider"
 import { SearchProvider } from "@/components/search-provider"
 import { SiteHeader } from "@/components/site-header"
 import "./globals.css"
@@ -28,8 +30,18 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col">
         <SearchProvider>
-          <SiteHeader />
-          <main className="flex-1">{children}</main>
+          <Suspense
+            fallback={
+              <div className="border-b border-t-4 border-t-primary px-4 py-4">
+                <p className="font-semibold">Retreat Content Library</p>
+              </div>
+            }
+          >
+            <ProjectProvider>
+              <SiteHeader />
+              <main className="flex-1">{children}</main>
+            </ProjectProvider>
+          </Suspense>
         </SearchProvider>
       </body>
     </html>

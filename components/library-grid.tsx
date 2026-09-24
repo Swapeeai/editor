@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { MediaCard } from "@/components/media-card"
+import { useProject } from "@/components/project-provider"
 import { useSearchQuery } from "@/components/search-provider"
 import { filterSampleMedia, type MediaFilter } from "@/lib/sample-media"
 
@@ -15,9 +16,10 @@ const tabs: { id: MediaFilter; label: string }[] = [
 
 export function LibraryGrid() {
   const { query } = useSearchQuery()
+  const { projectId, project } = useProject()
   const [mediaFilter, setMediaFilter] = useState<MediaFilter>("all")
-  const items = filterSampleMedia(query, mediaFilter)
-  const inThisTab = filterSampleMedia("", mediaFilter).length
+  const items = filterSampleMedia(query, projectId, mediaFilter)
+  const inThisTab = filterSampleMedia("", projectId, mediaFilter).length
   const trimmed = query.trim()
   const noun =
     mediaFilter === "video"
@@ -46,6 +48,7 @@ export function LibraryGrid() {
       </div>
 
       <p className="text-sm text-muted-foreground">
+        {project.name}.{" "}
         {trimmed
           ? `Showing ${items.length} of ${inThisTab} sample ${noun}.`
           : `${inThisTab} sample ${noun}.`}

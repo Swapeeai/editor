@@ -1,5 +1,4 @@
-import Link from "next/link"
-import { buttonVariants } from "@/components/ui/button"
+import { HomeLinks } from "@/components/home-links"
 import {
   Card,
   CardContent,
@@ -7,7 +6,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { cn } from "@/lib/utils"
 
 export default function HomePage() {
   return (
@@ -23,38 +21,13 @@ export default function HomePage() {
           ask for a storyboard of a social video.
         </p>
         <p className="text-base leading-7 text-muted-foreground">
-          The library starts with made-up samples from two camps: Phuket Pole
-          Camp 2026, which is the current one, and Bali Pole Retreat 2025,
-          which is a past one.
+          There are three projects: Ibiza Pro Retreat, Phuket Pro Retreat, and
+          Flati Fitness. Pick one at the top. The library, search, upload, and
+          storyboard then use only that project.
         </p>
       </div>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-        <Link
-          href="/upload"
-          className={cn(buttonVariants({ size: "lg" }), "h-10 px-4")}
-        >
-          Upload
-        </Link>
-        <Link
-          href="/library"
-          className={cn(
-            buttonVariants({ variant: "outline", size: "lg" }),
-            "h-10 px-4",
-          )}
-        >
-          Media Library
-        </Link>
-        <Link
-          href="/create-video"
-          className={cn(
-            buttonVariants({ variant: "outline", size: "lg" }),
-            "h-10 px-4",
-          )}
-        >
-          Create Video
-        </Link>
-      </div>
+      <HomeLinks />
 
       <Card>
         <CardHeader>
@@ -71,7 +44,10 @@ export default function HomePage() {
               clears that preview.
             </li>
             <li>Open the Media Library and filter All, Videos, or Photos.</li>
-            <li>Use the search box at the top to filter the sample titles and tags.</li>
+            <li>
+              Use the search box at the top. It only looks inside the project
+              you picked.
+            </li>
             <li>
               On Create Video, write a direction. The storyboard is a plan, not
               a finished video.
