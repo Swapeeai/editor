@@ -18,7 +18,7 @@ export default function UploadPage() {
         </p>
         <p className="text-base leading-7 text-muted-foreground">
           {connected
-            ? "The file belongs to the project selected at the top. After the preview looks right, choose Save to library."
+            ? "The file belongs to the project selected at the top. After the preview looks right, choose Save to library. Each file must be 50 MB or smaller."
             : "Supabase is not connected, so this page can only preview a file. Nothing is saved, and the Media Library keeps showing samples."}
         </p>
       </div>

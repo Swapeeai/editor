@@ -23,23 +23,23 @@ export type SampleMedia = {
 
 const phuket = {
   projectId: "phuket" as const,
-  retreatName: "Phuket Pro Retreat",
+  retreatName: "Phuket Pole Retreat",
   year: 2026,
   location: "Phuket, Thailand",
 }
 
 const ibiza = {
   projectId: "ibiza" as const,
-  retreatName: "Ibiza Pro Retreat",
+  retreatName: "Ibiza Pole Retreat",
   year: 2026,
   location: "Ibiza, Spain",
 }
 
 const flati = {
   projectId: "flati" as const,
-  retreatName: "Flati Fitness",
+  retreatName: "Flirty Fitness",
   year: 2026,
-  location: "Flati studio",
+  location: "Flirty studio",
 }
 
 export const sampleMedia: SampleMedia[] = [
@@ -189,7 +189,7 @@ export const sampleMedia: SampleMedia[] = [
   },
   {
     id: "flati-studio",
-    title: "Sample: Flati studio floor",
+    title: "Sample: Flirty studio floor",
     mediaType: "photo",
     ...flati,
     tags: ["studio"],

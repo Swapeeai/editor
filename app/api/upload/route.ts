@@ -1,16 +1,14 @@
 import { NextResponse } from "next/server"
 import { isProjectId } from "@/lib/projects"
-import {
-  mediaTypeFromFile,
-  rowToSavedMedia,
-  safeFileName,
-  titleFromFileName,
-  type MediaRow,
-} from "@/lib/saved-media"
+import { mediaTypeFromFile, safeFileName, titleFromFileName } from "@/lib/saved-media"
 import { NOT_CONNECTED_MESSAGE } from "@/lib/supabase"
 import { getSupabaseAdmin, MEDIA_BUCKET } from "@/lib/supabase-admin"
+import { FILE_TOO_BIG_MESSAGE, MAX_UPLOAD_BYTES } from "@/lib/upload-limit"
 
 export const dynamic = "force-dynamic"
+
+// Asks Storage for a short-lived upload link. The file itself does not come
+// through this route, so a large video is not cut off at 10 MB.
 
 export async function POST(request: Request) {
   const supabase = getSupabaseAdmin()
@@ -18,34 +16,49 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: NOT_CONNECTED_MESSAGE }, { status: 503 })
   }
 
-  let form: FormData
+  let body: unknown
   try {
-    form = await request.formData()
+    body = await request.json()
   } catch {
     return NextResponse.json(
-      { error: "The upload form was empty or too hard to read." },
+      { error: "The upload request was empty or too hard to read." },
       { status: 400 },
     )
   }
 
-  const projectValue = form.get("projectId")
-  const projectId = typeof projectValue === "string" ? projectValue : ""
+  const record = body as {
+    projectId?: unknown
+    fileName?: unknown
+    mimeType?: unknown
+    size?: unknown
+  }
+  const projectId = typeof record.projectId === "string" ? record.projectId : ""
+  const fileName = typeof record.fileName === "string" ? record.fileName : ""
+  const mimeType = typeof record.mimeType === "string" ? record.mimeType : ""
+  const size = typeof record.size === "number" ? record.size : Number.NaN
+
   if (!isProjectId(projectId)) {
     return NextResponse.json(
-      { error: "Pick a project first: Ibiza, Phuket, or Flati." },
+      {
+        error:
+          "Pick a project first: Ibiza Pole Retreat, Phuket Pole Retreat, or Flirty Fitness.",
+      },
       { status: 400 },
     )
   }
 
-  const file = form.get("file")
-  if (!(file instanceof File) || file.size === 0) {
+  if (!fileName || !Number.isFinite(size) || size <= 0) {
     return NextResponse.json(
       { error: "Choose a photo or a video first." },
       { status: 400 },
     )
   }
 
-  const mediaType = mediaTypeFromFile(file)
+  if (size > MAX_UPLOAD_BYTES) {
+    return NextResponse.json({ error: FILE_TOO_BIG_MESSAGE }, { status: 413 })
+  }
+
+  const mediaType = mediaTypeFromFile({ type: mimeType, name: fileName })
   if (!mediaType) {
     return NextResponse.json(
       { error: "Choose a photo or a video." },
@@ -54,59 +67,30 @@ export async function POST(request: Request) {
   }
 
   const id = crypto.randomUUID()
-  const storagePath = `${projectId}/${id}-${safeFileName(file.name)}`
-  const bytes = new Uint8Array(await file.arrayBuffer())
+  const storagePath = `${projectId}/${id}-${safeFileName(fileName)}`
+  const signed = await supabase.storage
+    .from(MEDIA_BUCKET)
+    .createSignedUploadUrl(storagePath)
 
-  const uploaded = await supabase.storage.from(MEDIA_BUCKET).upload(storagePath, bytes, {
-    contentType: file.type || "application/octet-stream",
-    upsert: false,
-  })
-
-  if (uploaded.error) {
-    const missingBucket = /bucket/i.test(uploaded.error.message)
+  if (signed.error || !signed.data?.signedUrl) {
+    const missingBucket = /bucket/i.test(signed.error?.message ?? "")
     return NextResponse.json(
       {
         error: missingBucket
           ? "Could not save the file. Create a private Storage bucket named media, then try again."
-          : "Could not save the file to Storage. Nothing was added to the library.",
+          : "Could not start the upload. Nothing was added to the library.",
       },
       { status: 502 },
     )
   }
-
-  const inserted = await supabase
-    .from("media_items")
-    .insert({
-      id,
-      project_id: projectId,
-      title: titleFromFileName(file.name),
-      media_type: mediaType,
-      storage_path: storagePath,
-      mime_type: file.type || null,
-    })
-    .select(
-      "id, project_id, title, media_type, storage_path, mime_type, created_at",
-    )
-    .single()
-
-  if (inserted.error || !inserted.data) {
-    await supabase.storage.from(MEDIA_BUCKET).remove([storagePath])
-    const missingTable = /media_items|relation/i.test(inserted.error?.message ?? "")
-    return NextResponse.json(
-      {
-        error: missingTable
-          ? "The media_items table is missing. Paste supabase/schema.sql in the Supabase SQL editor, then try again."
-          : "The library row could not be saved, so the file was removed from Storage.",
-      },
-      { status: 502 },
-    )
-  }
-
-  const signed = await supabase.storage
-    .from(MEDIA_BUCKET)
-    .createSignedUrl(storagePath, 60 * 60)
 
   return NextResponse.json({
-    item: rowToSavedMedia(inserted.data as MediaRow, signed.data?.signedUrl ?? null),
+    id,
+    projectId,
+    title: titleFromFileName(fileName),
+    mediaType,
+    storagePath,
+    mimeType: mimeType || null,
+    signedUrl: signed.data.signedUrl,
   })
 }

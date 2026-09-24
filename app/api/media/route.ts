@@ -9,7 +9,10 @@ export async function GET(request: Request) {
   const projectId = new URL(request.url).searchParams.get("project")
   if (!isProjectId(projectId)) {
     return NextResponse.json(
-      { error: "Pick a project first: Ibiza, Phuket, or Flati." },
+      {
+        error:
+          "Pick a project first: Ibiza Pole Retreat, Phuket Pole Retreat, or Flirty Fitness.",
+      },
       { status: 400 },
     )
   }

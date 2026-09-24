@@ -2,7 +2,7 @@
 
 This is a small website for Suzanne’s photos and videos.
 
-It holds three projects: Ibiza Pro Retreat, Phuket Pro Retreat, and Flati Fitness. You pick one at the top. The library, search, upload, and storyboard then use only that project.
+It holds three projects: Ibiza Pole Retreat, Phuket Pole Retreat, and Flirty Fitness. You pick one at the top. The library, search, upload, and storyboard then use only that project. The addresses still use `ibiza`, `phuket`, and `flati`.
 
 You can preview a file, save it to a private Supabase bucket, browse what you saved, and build a storyboard. If Supabase is not set up, or a project has no uploads yet, the library shows sample cards instead.
 
@@ -14,7 +14,7 @@ The pages are real. You can click through them in the browser.
 
 Sample cards are fake, so the library is not empty before you upload. The titles are made up, such as “Sample: People laughing”. Each sample card uses a simple poster drawn for this project. A sample card is labelled **Sample**.
 
-Each sample belongs to one project. Ibiza and Phuket are pole-retreat samples. Flati Fitness is general fitness and studio samples.
+Each sample belongs to one project. Ibiza and Phuket are pole-retreat samples. Flirty Fitness is general fitness and studio samples.
 
 When the three Supabase values are set, **Save to library** stores the file in a private bucket named `media` and adds a row for the active project. The Media Library then shows those saved files instead of the samples. Photos and videos are opened with a short-lived link. The bucket stays private.
 
@@ -62,7 +62,7 @@ If you change `.env.local` later, stop the app and run `npm run dev` again. Next
 - `POST /api/upload` saves one file. `GET /api/media?project=ibiza` lists saved files (`phuket` and `flati` work the same way).
 - The project switcher and the search box sit at the top of every page.
 
-The chosen project is stored in the address as `?project=ibiza`, `?project=phuket`, or `?project=flati`. It is also remembered in the browser, so a refresh keeps it. The first visit opens Ibiza Pro Retreat.
+The chosen project is stored in the address as `?project=ibiza`, `?project=phuket`, or `?project=flati`. It is also remembered in the browser, so a refresh keeps it. The first visit opens Ibiza Pole Retreat.
 
 Main files:
 
@@ -95,7 +95,9 @@ Do these steps once. Until they are done, Upload says Supabase is not connected,
 
 Never paste the service_role key into chat. Never put it in a name that starts with `NEXT_PUBLIC_`. That prefix is sent to the browser. The service role key must stay in `.env.local` only. `.env.local` is not committed.
 
-There is no login yet. The browser does not upload straight to Supabase. **Save to library** calls `POST /api/upload` on this website. That route uses the service role key on the server, writes the file to the private `media` bucket, and inserts a row in `media_items`. The service role bypasses row level security. The anon key cannot read the table. The bucket stays private. Playback links expire after one hour. Refresh the Media Library to get a new link.
+There is no login yet. **Save to library** asks this website for a short-lived upload link (`POST /api/upload`). Your browser then sends the file straight to the private `media` bucket. `POST /api/upload/complete` adds the row in `media_items`. The service role key stays on the server and is not sent to the browser. The anon key cannot read the table. The bucket stays private.
+
+Each file can be up to **50 MB**. All files together can be about **1 GB** on the free Supabase plan. A bigger file shows an error on the Upload page and is not saved. Playback links expire after one hour. Refresh the Media Library to get a new link.
 
 A saved file is stored at:
 
@@ -116,9 +118,10 @@ There is still no login.
 - The app uses the Next.js App Router, TypeScript, Tailwind, and shadcn/ui. Buttons, text fields, and cards come from shadcn. Those files live in `components/ui`.
 - The sample cards are posters only. I did not download any photo or video, so nothing copyrighted is included.
 - There are three projects. Every sample item has one `projectId`: `ibiza`, `phuket`, or `flati`. Saved rows use the same three ids.
-- Ibiza Pro Retreat and Phuket Pro Retreat are pole retreats. Flati Fitness is a studio and fitness sample set.
+- The display names are Ibiza Pole Retreat, Phuket Pole Retreat, and Flirty Fitness. The stored ids stay `ibiza`, `phuket`, and `flati`, so existing uploads and the table check still match. Do not rerun the SQL for a rename.
 - The project switcher is in the top bar. Switching clears the search so you see that project’s own cards.
-- The choice is saved in the page address (`?project=`) and in the browser. A refresh keeps it. If the address has no project, the app uses the last one, or Ibiza Pro Retreat.
+- The choice is saved in the page address (`?project=`) and in the browser. A refresh keeps it. If the address has no project, the app uses the last one, or Ibiza Pole Retreat.
+- A saved file goes from the browser straight to Storage. The Next.js server only creates the upload link and the library row. The free plan allows 50 MB per file and about 1 GB in total.
 - Search, the library, and Create Video only look at the active project.
 - Search compares your words with the title, tags, retreat name, year, place, and file name. It ignores capital letters. It does not look inside a file.
 - The search text stays while you move between pages. Refreshing clears the search. Switching project also clears it. The local preview clears on refresh. A saved file does not.

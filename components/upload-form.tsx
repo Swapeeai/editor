@@ -6,6 +6,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { useProject } from "@/components/project-provider"
 import { NOT_CONNECTED_MESSAGE } from "@/lib/supabase"
+import {
+  FILE_TOO_BIG_MESSAGE,
+  MAX_UPLOAD_BYTES,
+  plainStorageError,
+} from "@/lib/upload-limit"
 
 type PreviewKind = "video" | "image"
 
@@ -83,9 +88,13 @@ export function UploadForm({ connected }: { connected: boolean }) {
       return
     }
 
-    setError(null)
     setStatus(null)
     setSaved(false)
+    if (nextFile.size > MAX_UPLOAD_BYTES) {
+      setError(FILE_TOO_BIG_MESSAGE)
+    } else {
+      setError(null)
+    }
     replacePreview(nextFile, nextKind)
   }
 
@@ -102,24 +111,78 @@ export function UploadForm({ connected }: { connected: boolean }) {
       return
     }
 
+    if (file.size > MAX_UPLOAD_BYTES) {
+      setError(FILE_TOO_BIG_MESSAGE)
+      return
+    }
+
     setSaving(true)
     setError(null)
-    setStatus(null)
+    setStatus("Saving… the file goes straight to Storage. A long video can take a minute.")
 
     try {
-      const body = new FormData()
-      body.set("file", file)
-      body.set("projectId", project.id)
-      const response = await fetch("/api/upload", { method: "POST", body })
-      const payload = (await response.json()) as {
+      const preparedResponse = await fetch("/api/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId: project.id,
+          fileName: file.name,
+          mimeType: file.type,
+          size: file.size,
+        }),
+      })
+      const prepared = (await preparedResponse.json()) as {
+        error?: string
+        id?: string
+        storagePath?: string
+        signedUrl?: string
+        title?: string
+      }
+      if (!preparedResponse.ok || !prepared.signedUrl || !prepared.id || !prepared.storagePath) {
+        setError(prepared.error || "Could not start the upload.")
+        setStatus(null)
+        return
+      }
+
+      const uploadBody = new FormData()
+      uploadBody.append("cacheControl", "3600")
+      uploadBody.append("", file, file.name)
+      const uploaded = await fetch(prepared.signedUrl, {
+        method: "PUT",
+        body: uploadBody,
+      })
+      if (!uploaded.ok) {
+        const details = await uploaded.text()
+        setError(
+          plainStorageError(uploaded.status, details) ||
+            "Could not save the file to Storage. Nothing was added to the library.",
+        )
+        setStatus(null)
+        return
+      }
+
+      const finishedResponse = await fetch("/api/upload/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: prepared.id,
+          projectId: project.id,
+          fileName: file.name,
+          mimeType: file.type,
+          storagePath: prepared.storagePath,
+        }),
+      })
+      const finished = (await finishedResponse.json()) as {
         error?: string
         item?: { title?: string }
       }
-      if (!response.ok) {
-        setError(payload.error || "Could not save that file.")
+      if (!finishedResponse.ok) {
+        setError(finished.error || "Could not save that file.")
+        setStatus(null)
         return
       }
-      const title = payload.item?.title || file.name
+
+      const title = finished.item?.title || prepared.title || file.name
       setSaved(true)
       setStatus(
         `Saved “${title}” to ${project.name}. Open the Media Library to see it.`,
@@ -128,6 +191,7 @@ export function UploadForm({ connected }: { connected: boolean }) {
       setError(
         "Could not reach the save service. Check that the app is running, then try again.",
       )
+      setStatus(null)
     } finally {
       setSaving(false)
     }
@@ -155,8 +219,9 @@ export function UploadForm({ connected }: { connected: boolean }) {
         </p>
         {connected ? (
           <p className="text-sm text-muted-foreground">
-            The preview stays on this computer. Save to library stores the file
-            for {project.name}.
+            The preview stays on this computer. Save to library sends the file
+            straight to Storage for {project.name}. Each file must be 50 MB or
+            smaller. The free plan holds about 1 GB in total.
           </p>
         ) : (
           <p className="text-sm text-muted-foreground" role="status">
@@ -226,7 +291,13 @@ export function UploadForm({ connected }: { connected: boolean }) {
             <Button
               type="button"
               onClick={saveToLibrary}
-              disabled={!file || !connected || saving || saved}
+              disabled={
+                !file ||
+                !connected ||
+                saving ||
+                saved ||
+                file.size > MAX_UPLOAD_BYTES
+              }
             >
               {saving ? "Saving…" : saved ? "Saved" : "Save to library"}
             </Button>

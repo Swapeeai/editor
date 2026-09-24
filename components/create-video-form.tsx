@@ -17,23 +17,23 @@ const examples: Record<
   { title: string; date: string; location: string; direction: string }
 > = {
   ibiza: {
-    title: "Ibiza Pro Retreat",
+    title: "Ibiza Pole Retreat",
     date: "4–10 May 2026",
     location: "Ibiza, Spain",
     direction:
       "announce the camp date and place over an Ibiza background, then a dynamic pole trick, then someone clapping, then teaching, then instructors, then food.",
   },
   phuket: {
-    title: "Phuket Pro Retreat",
+    title: "Phuket Pole Retreat",
     date: "12–18 October 2026",
     location: "Phuket, Thailand",
     direction:
       "announce the camp date and place over a Phuket background, then a dynamic pole trick, then someone clapping, then teaching, then instructors, then food.",
   },
   flati: {
-    title: "Flati Fitness",
+    title: "Flirty Fitness",
     date: "Mondays in October 2026",
-    location: "Flati studio",
+    location: "Flirty studio",
     direction:
       "announce the class date and place over a studio background, then someone clapping, then teaching, then instructors, then food.",
   },

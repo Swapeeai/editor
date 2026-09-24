@@ -4,17 +4,17 @@
 export const projects = [
   {
     id: "ibiza",
-    name: "Ibiza Pro Retreat",
+    name: "Ibiza Pole Retreat",
     blurb: "Pole retreat samples set in Ibiza.",
   },
   {
     id: "phuket",
-    name: "Phuket Pro Retreat",
+    name: "Phuket Pole Retreat",
     blurb: "Pole retreat samples set in Phuket.",
   },
   {
     id: "flati",
-    name: "Flati Fitness",
+    name: "Flirty Fitness",
     blurb: "Fitness and studio samples.",
   },
 ] as const

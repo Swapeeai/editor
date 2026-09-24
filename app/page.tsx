@@ -21,8 +21,8 @@ export default function HomePage() {
           connected, and ask for a storyboard of a social video.
         </p>
         <p className="text-base leading-7 text-muted-foreground">
-          There are three projects: Ibiza Pro Retreat, Phuket Pro Retreat, and
-          Flati Fitness. Pick one at the top. The library, search, upload, and
+          There are three projects: Ibiza Pole Retreat, Phuket Pole Retreat, and
+          Flirty Fitness. Pick one at the top. The library, search, upload, and
           storyboard then use only that project.
         </p>
       </div>
