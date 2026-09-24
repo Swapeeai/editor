@@ -24,7 +24,9 @@ Create Video builds a storyboard from the words you type. It uses saved files fo
 
 Use this in a terminal on your own computer, in the project folder. You do not need Cursor’s preview.
 
-You need Node.js installed first. Then run:
+Install Node.js LTS first, from [https://nodejs.org](https://nodejs.org). On Windows, download the LTS installer and click Next through it. Close the installer, then open a new terminal so `npm` is available.
+
+Then run:
 
 ```bash
 npm install
