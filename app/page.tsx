@@ -17,8 +17,8 @@ export default function HomePage() {
         </h1>
         <p className="text-base leading-7 text-muted-foreground">
           This is your private place for pole-retreat photos and videos. You
-          can preview a file on your own computer, browse sample cards, and
-          ask for a storyboard of a social video.
+          can preview a file, save it to the library once Supabase is
+          connected, and ask for a storyboard of a social video.
         </p>
         <p className="text-base leading-7 text-muted-foreground">
           There are three projects: Ibiza Pro Retreat, Phuket Pro Retreat, and
@@ -33,15 +33,15 @@ export default function HomePage() {
         <CardHeader>
           <CardTitle>What you can do here</CardTitle>
           <CardDescription>
-            The cards are samples so the pages are not empty. They are not your
-            real footage.
+            Sample cards fill the library until a project has real uploads.
+            They are not your footage.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <ul className="list-disc space-y-2 pl-5 text-sm leading-6">
             <li>
-              Choose a photo or video and preview it. Refreshing the page
-              clears that preview.
+              Choose a photo or video and preview it. When Supabase is
+              connected, Save to library keeps it for the project you picked.
             </li>
             <li>Open the Media Library and filter All, Videos, or Photos.</li>
             <li>

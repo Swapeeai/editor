@@ -5,9 +5,11 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { useProject } from "@/components/project-provider"
+import { useProjectMedia } from "@/components/use-project-media"
 import { findMoments } from "@/lib/find-moments"
 import type { ProjectId } from "@/lib/projects"
-import { mediaForProject } from "@/lib/sample-media"
+import { savedMediaAsClip, type SavedMedia } from "@/lib/saved-media"
+import { mediaForProject, type SampleMedia } from "@/lib/sample-media"
 import { Storyboard, type StoryScene } from "@/components/storyboard"
 
 const examples: Record<
@@ -52,8 +54,25 @@ export function CreateVideoForm() {
   return <CreateVideoFields key={projectId} />
 }
 
+function libraryForStoryboard(
+  projectId: ProjectId,
+  configured: boolean,
+  items: SavedMedia[],
+): { clips: SampleMedia[]; fromUploads: boolean } {
+  if (configured && items.length > 0) {
+    return {
+      clips: items
+        .filter((item) => item.projectId === projectId)
+        .map(savedMediaAsClip),
+      fromUploads: true,
+    }
+  }
+  return { clips: mediaForProject(projectId), fromUploads: false }
+}
+
 function CreateVideoFields() {
   const { projectId, project } = useProject()
+  const media = useProjectMedia(projectId)
   const example = examples[projectId]
   const [titleText, setTitleText] = useState("")
   const [campDate, setCampDate] = useState("")
@@ -61,6 +80,8 @@ function CreateVideoFields() {
   const [direction, setDirection] = useState("")
   const [scenes, setScenes] = useState<StoryScene[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [usingUploads, setUsingUploads] = useState(false)
+  const [building, setBuilding] = useState(false)
 
   function fillExample() {
     setTitleText(example.title)
@@ -70,21 +91,44 @@ function CreateVideoFields() {
     setError(null)
   }
 
-  function buildStoryboard() {
+  async function buildStoryboard() {
     if (!direction.trim()) {
       setError("Type a direction first.")
       setScenes(null)
       return
     }
 
-    const matches = findMoments(direction, mediaForProject(projectId))
+    setBuilding(true)
+    setError(null)
+
+    let configured = media.configured
+    let items = media.items
+    try {
+      const response = await fetch(`/api/media?project=${projectId}`)
+      const body = (await response.json()) as {
+        configured?: boolean
+        items?: SavedMedia[]
+      }
+      if (response.ok) {
+        configured = Boolean(body.configured)
+        items = Array.isArray(body.items) ? body.items : []
+      }
+    } catch {
+      configured = false
+      items = []
+    }
+
+    const library = libraryForStoryboard(projectId, configured, items)
+    const matches = findMoments(direction, library.clips)
+    setBuilding(false)
+
     if (matches.length === 0) {
       setError("Add a few words about what you want to see.")
       setScenes(null)
       return
     }
 
-    setError(null)
+    setUsingUploads(library.fromUploads)
     setScenes(
       matches.map((match, index) => ({
         id: `scene-${index}-${match.media?.id ?? "none"}`,
@@ -178,6 +222,9 @@ function CreateVideoFields() {
           <p className="text-sm text-muted-foreground">
             Use the word “then” between moments. Scenes come only from{" "}
             {project.name}. Other projects are left out.
+            {media.status === "ready" && media.configured && media.items.length > 0
+              ? " Saved files are used first. They have no tags yet, so matching uses the title and file name."
+              : " Until saved files exist, matching uses the sample cards."}
           </p>
         </div>
 
@@ -188,7 +235,9 @@ function CreateVideoFields() {
         ) : null}
 
         <div className="flex flex-col gap-2 sm:flex-row">
-          <Button type="submit">Build storyboard</Button>
+          <Button type="submit" disabled={building}>
+            {building ? "Building…" : "Build storyboard"}
+          </Button>
           <Button type="button" variant="outline" onClick={fillExample}>
             Fill the example
           </Button>
@@ -196,14 +245,21 @@ function CreateVideoFields() {
       </form>
 
       {scenes ? (
-        <Storyboard
-          scenes={scenes}
-          titleText={titleText}
-          campDate={campDate}
-          campLocation={campLocation}
-          onMove={moveScene}
-          onRemove={removeScene}
-        />
+        <>
+          <p className="text-sm text-muted-foreground">
+            {usingUploads
+              ? `These scenes use saved files from ${project.name}.`
+              : `These scenes use sample cards from ${project.name}.`}
+          </p>
+          <Storyboard
+            scenes={scenes}
+            titleText={titleText}
+            campDate={campDate}
+            campLocation={campLocation}
+            onMove={moveScene}
+            onRemove={removeScene}
+          />
+        </>
       ) : (
         <p className="text-sm text-muted-foreground">
           No storyboard yet. Type a direction, then choose Build storyboard.

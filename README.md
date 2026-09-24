@@ -2,23 +2,23 @@
 
 This is a small website for Suzanne’s photos and videos.
 
-It holds three projects: Ibiza Pro Retreat, Phuket Pro Retreat, and Flati Fitness. You pick one at the top. The library, search, upload note, and storyboard then use only that project.
+It holds three projects: Ibiza Pro Retreat, Phuket Pro Retreat, and Flati Fitness. You pick one at the top. The library, search, upload, and storyboard then use only that project.
 
-You can browse sample cards, preview a file on your own computer, and build a storyboard. This version does not save anything, and it does not make a finished video.
+You can preview a file, save it to a private Supabase bucket, browse what you saved, and build a storyboard. If Supabase is not set up, or a project has no uploads yet, the library shows sample cards instead.
 
-You do not need an account for this step.
+You do not need an account to use the site. There is no login screen.
 
 ## What is real vs sample
 
 The pages are real. You can click through them in the browser.
 
-The Media Library cards are fake samples so the page is not empty. The titles are made up, such as “Sample: People laughing”. Each card uses a simple poster drawn for this project. There is no photo or video file behind those cards.
+Sample cards are fake, so the library is not empty before you upload. The titles are made up, such as “Sample: People laughing”. Each sample card uses a simple poster drawn for this project. A sample card is labelled **Sample**.
 
 Each sample belongs to one project. Ibiza and Phuket are pole-retreat samples. Flati Fitness is general fitness and studio samples.
 
-The Upload page can preview a photo or video you choose. That preview is temporary. Refresh the page and it is gone. The file is not uploaded anywhere, and it is not added to the Media Library. The page names the project the file will belong to once saving exists.
+When the three Supabase values are set, **Save to library** stores the file in a private bucket named `media` and adds a row for the active project. The Media Library then shows those saved files instead of the samples. Photos and videos are opened with a short-lived link. The bucket stays private.
 
-Create Video builds a storyboard from the words you type. It matches those words to sample titles, tags, and places in the active project only. It does not watch the footage. It does not render or export a video.
+Create Video builds a storyboard from the words you type. It uses saved files for the active project when there are any. Saved files have no tags yet, so it matches the title and the file name. If there are no saved files, it uses the sample cards. It does not watch the footage. It does not render or export a video.
 
 ## How to run it locally
 
@@ -36,9 +36,10 @@ Open [http://localhost:43123](http://localhost:43123). [http://127.0.0.1:43123](
 ## Pages
 
 - `/` is the home page, titled Retreat Content Library.
-- `/upload` lets you preview a photo or video in the browser.
-- `/library` shows the sample cards for the project you picked. Use All, Videos, or Photos.
+- `/upload` previews a photo or video, then can save it to the active project.
+- `/library` lists saved files for the project you picked, or sample cards if there are none. Use All, Videos, or Photos.
 - `/create-video` turns a written direction into a storyboard for that same project.
+- `POST /api/upload` saves one file. `GET /api/media?project=ibiza` lists saved files (`phuket` and `flati` work the same way).
 - The project switcher and the search box sit at the top of every page.
 
 The chosen project is stored in the address as `?project=ibiza`, `?project=phuket`, or `?project=flati`. It is also remembered in the browser, so a refresh keeps it. The first visit opens Ibiza Pro Retreat.
@@ -46,32 +47,43 @@ The chosen project is stored in the address as `?project=ibiza`, `?project=phuke
 Main files:
 
 - `app/page.tsx` — home
-- `app/upload/page.tsx` — preview a photo or video
-- `app/library/page.tsx` — sample cards
+- `app/upload/page.tsx` — preview, then save
+- `app/library/page.tsx` — saved files, or samples
 - `app/create-video/page.tsx` — the storyboard
+- `app/api/upload/route.ts` — saves a file with the service role key
+- `app/api/media/route.ts` — lists saved files for one project
 - `app/layout.tsx` — the top bar, project switcher, and search
 - `lib/projects.ts` — the three project names
 - `lib/sample-media.ts` — the fake list
-- `lib/find-moments.ts` — picks a sample for each line of a direction
-- `lib/supabase.ts` — reads the Supabase names, and does nothing until they are set
+- `lib/find-moments.ts` — picks a clip for each line of a direction
+- `lib/supabase-admin.ts` — the server-only Supabase client
+- `supabase/schema.sql` — the table to paste once
 - `components/search-box.tsx`, `components/media-card.tsx`, and `components/upload-form.tsx`
 
-## Supabase later
+## Connect Supabase
 
-Saving files will use Supabase. You do not need it yet. When you create a Supabase project, copy two values into a file named `.env.local` on your computer. That file is not committed.
+Do these steps once. Until they are done, Upload says Supabase is not connected, and the library keeps showing samples.
 
-```bash
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-```
+1. In the Supabase dashboard, open **Storage**. Create a bucket named `media`. Leave it **private**. Do not make it public.
+2. Open the **SQL Editor**. Paste the whole file `supabase/schema.sql`. Run it once.
+3. On your computer, copy `.env.example` to a new file named `.env.local` in this project folder.
+4. In Supabase, open **Project Settings → API**. Copy the three values into `.env.local`:
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` (the anon public key)
+   - `SUPABASE_SERVICE_ROLE_KEY` (the service_role secret)
+5. Restart the app. Stop it, then run `npm run dev` again. Next.js only reads `.env.local` at startup.
 
-The same empty names are in `.env.example`. Do not put real keys in the repository. Leave them blank until you have them.
+Never paste the service_role key into chat. Never put it in a name that starts with `NEXT_PUBLIC_`. That prefix is sent to the browser. The service role key must stay in `.env.local` only. `.env.local` is not committed.
 
-`lib/supabase.ts` reads those two names. If either one is missing, it returns nothing and the Upload page says saving is not configured. This version does not call Supabase, and it does not create a bucket.
+There is no login yet. The browser does not upload straight to Supabase. **Save to library** calls `POST /api/upload` on this website. That route uses the service role key on the server, writes the file to the private `media` bucket, and inserts a row in `media_items`. The service role bypasses row level security. The anon key cannot read the table. The bucket stays private. Playback links expire after one hour. Refresh the Media Library to get a new link.
+
+A saved file is stored at:
+
+`media/{project_id}/{uuid}-{safeFileName}`
+
+`media` is the bucket. `project_id` is `ibiza`, `phuket`, or `flati`. The file name is cleaned so it is safe to store.
 
 ## What still needs accounts
-
-Supabase can save real photos and videos later. That needs a Supabase project and the two values above.
 
 Twelve Labs can look inside the real footage later. That needs a Twelve Labs account. The only file to change for that is `lib/find-moments.ts`. Replace `findMoments` with the Twelve Labs call. The storyboard page can stay. It should still receive only the active project’s media.
 
@@ -83,17 +95,17 @@ There is still no login.
 
 - The app uses the Next.js App Router, TypeScript, Tailwind, and shadcn/ui. Buttons, text fields, and cards come from shadcn. Those files live in `components/ui`.
 - The sample cards are posters only. I did not download any photo or video, so nothing copyrighted is included.
-- There are three projects. Every sample item has one `projectId`: `ibiza`, `phuket`, or `flati`.
+- There are three projects. Every sample item has one `projectId`: `ibiza`, `phuket`, or `flati`. Saved rows use the same three ids.
 - Ibiza Pro Retreat and Phuket Pro Retreat are pole retreats. Flati Fitness is a studio and fitness sample set.
 - The project switcher is in the top bar. Switching clears the search so you see that project’s own cards.
 - The choice is saved in the page address (`?project=`) and in the browser. A refresh keeps it. If the address has no project, the app uses the last one, or Ibiza Pro Retreat.
 - Search, the library, and Create Video only look at the active project.
-- Search compares your words with the title, tags, retreat name, year, and place. It ignores capital letters. It does not look inside a file.
-- The search text stays while you move between pages. Refreshing clears the search. Switching project also clears it. The upload preview clears on refresh.
-- Choosing a file on Upload does not add it to the Media Library. The page says which project it will belong to.
-- Create Video splits the direction on the word “then”. Each piece becomes one scene of 5 seconds. Moving or removing a scene updates the times. Changing project starts the form over so the storyboard cannot keep another project’s clips.
-- If a line is about announcing the camp, or about a background, that scene also shows the title text, camp date, and camp location you typed.
-- `lib/find-moments.ts` is a clearly labelled placeholder. It only does keyword and tag matching. It is the module a Twelve Labs call will replace later.
-- `lib/supabase.ts` does not talk to Supabase. There are no fake keys in the repo.
-- There is no login, no database call, no real AI call, and no video renderer.
+- Search compares your words with the title, tags, retreat name, year, place, and file name. It ignores capital letters. It does not look inside a file.
+- The search text stays while you move between pages. Refreshing clears the search. Switching project also clears it. The local preview clears on refresh. A saved file does not.
+- If any of the three Supabase values is missing, saving is off. Upload explains that in plain language. The library shows samples labelled Sample.
+- If Supabase is connected but the active project has no rows, the library still shows those samples.
+- If the active project has saved rows, the library shows only those rows. Sample cards are hidden for that project.
+- Saved files have no tags column yet. Create Video matches their title and file name. `lib/find-moments.ts` is still the placeholder a Twelve Labs call will replace.
+- The service role key is read only in `lib/supabase-admin.ts`, which the browser cannot import. Uploads go through the API route so the private bucket stays private until login exists.
+- There is no login screen, no Twelve Labs call, and no video renderer.
 - The dev server allows `127.0.0.1` as well as `localhost`, so the pages stay interactive at either address.

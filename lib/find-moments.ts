@@ -1,8 +1,8 @@
 // Placeholder for Twelve Labs.
 //
-// findMoments is the only function that picks a sample photo or video
-// for each line of a direction. It matches words to titles, tags, and places.
-// It does not watch the footage, and it does not call any AI service.
+// findMoments is the only function that picks a photo or video
+// for each line of a direction. It matches words to titles, tags, places,
+// and file names. It does not watch the footage, and it does not call any AI.
 //
 // When there is a Twelve Labs account, replace the body of findMoments
 // with that call. Keep the MomentMatch shape so the Create Video page
@@ -104,6 +104,15 @@ function scoreItem(phrase: string, item: SampleMedia) {
     if (reasons.length === 0) {
       reasons.push("words in the title")
     }
+  } else if (item.fileName) {
+    const stem = item.fileName.replace(/\.[a-z0-9]+$/i, "")
+    const nameHits = meaningfulWords(stem).filter((word) => phraseWords.has(word))
+    if (nameHits.length > 0) {
+      points += nameHits.length * 2
+      if (reasons.length === 0) {
+        reasons.push("words in the file name")
+      }
+    }
   }
 
   return { points, reasons }
@@ -136,7 +145,7 @@ export function findMoments(
       return {
         phrase,
         media: null,
-        reason: "No sample title, tag, or place matched these words.",
+        reason: "No title, tag, place, or file name matched these words.",
       }
     }
 

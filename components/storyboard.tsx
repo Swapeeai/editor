@@ -78,12 +78,18 @@ export function Storyboard({
                   Scene {index + 1} · {sceneRange(index)}
                 </p>
                 <CardTitle className="break-words">
-                  {scene.media?.title ?? "No sample matched"}
+                  {scene.media?.title ?? "No match"}
                 </CardTitle>
               </CardHeader>
               <CardContent className="flex flex-col gap-3">
                 <div className="flex flex-col gap-3 sm:flex-row">
-                  {scene.media ? (
+                  {scene.media?.mediaType === "video" && scene.media.playbackUrl ? (
+                    <video
+                      controls
+                      src={scene.media.playbackUrl}
+                      className="aspect-video w-full rounded-lg bg-black object-contain sm:w-40"
+                    />
+                  ) : scene.media?.poster ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={scene.media.poster}

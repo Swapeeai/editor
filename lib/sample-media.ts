@@ -16,6 +16,9 @@ export type SampleMedia = {
   location: string
   tags: string[]
   poster: string
+  // Set for a real upload. Samples leave these out.
+  fileName?: string
+  playbackUrl?: string | null
 }
 
 const phuket = {
@@ -248,14 +251,14 @@ export function mediaForProject(projectId: ProjectId) {
   return sampleMedia.filter((item) => item.projectId === projectId)
 }
 
-export function filterSampleMedia(
+export function filterMediaList(
+  items: SampleMedia[],
   query: string,
-  projectId: ProjectId,
   mediaFilter: MediaFilter = "all",
 ) {
   const needle = query.trim().toLowerCase()
 
-  return mediaForProject(projectId).filter((item) => {
+  return items.filter((item) => {
     if (mediaFilter !== "all" && item.mediaType !== mediaFilter) {
       return false
     }
@@ -268,6 +271,7 @@ export function filterSampleMedia(
       item.retreatName,
       String(item.year),
       item.location,
+      item.fileName ?? "",
       ...item.tags,
     ]
       .join(" ")
@@ -275,4 +279,12 @@ export function filterSampleMedia(
 
     return haystack.includes(needle)
   })
+}
+
+export function filterSampleMedia(
+  query: string,
+  projectId: ProjectId,
+  mediaFilter: MediaFilter = "all",
+) {
+  return filterMediaList(mediaForProject(projectId), query, mediaFilter)
 }

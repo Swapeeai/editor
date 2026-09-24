@@ -11,11 +11,13 @@ export default function CreateVideoPage() {
         <h1 className="text-3xl font-semibold tracking-tight">Create Video</h1>
         <p className="text-base leading-7 text-muted-foreground">
           Describe the video in plain language. The page builds a storyboard:
-          an ordered list of scenes, with a time range and a sample photo or
-          video for each line.
+          an ordered list of scenes, with a time range and a photo or video
+          for each line.
         </p>
         <p className="text-base leading-7 text-muted-foreground">
-          This plan is matched from tags in the project you picked at the top.
+          Saved files for the project you picked are used when they exist.
+          Those files have no tags yet, so matching uses the title and file
+          name. If there are no saved files, the sample cards are used instead.
           It does not pull clips from the other projects. It does not watch the
           footage, and it does not make a finished video. The matching lives in{" "}
           <code className="rounded bg-muted px-1.5 py-0.5 text-sm">
