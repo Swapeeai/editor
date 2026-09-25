@@ -8,9 +8,9 @@ export default function HomePage() {
           Retreat Content Library
         </h1>
         <p className="text-base leading-7 text-muted-foreground">
-          Pick a project, import videos from Google Drive, then export a
-          vertical video. The three projects are Ibiza Pole Retreat, Phuket
-          Pole Retreat, and Flirty Fitness.
+          Pick a project, import videos from Google Photos or Google Drive,
+          then export a vertical video. The three projects are Ibiza Pole
+          Retreat, Phuket Pole Retreat, and Flirty Fitness.
         </p>
         <p className="text-base leading-7 text-muted-foreground">
           Clips are matched by file title. Twelve Labs is not connected, so

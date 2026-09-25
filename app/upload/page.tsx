@@ -1,4 +1,5 @@
 import { DriveImport } from "@/components/drive-import"
+import { PhotosImport } from "@/components/photos-import"
 import { UploadForm } from "@/components/upload-form"
 import { isSupabaseConfigured } from "@/lib/supabase-admin"
 
@@ -23,6 +24,7 @@ export default function UploadPage() {
             : "Supabase is not connected, so this page can only preview a file. Nothing is saved. Each file must be 50 MB or smaller. The free Supabase plan holds about 1 GB in total."}
         </p>
       </div>
+      <PhotosImport connected={connected} />
       <DriveImport connected={connected} />
       <UploadForm connected={connected} />
     </div>

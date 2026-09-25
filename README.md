@@ -2,7 +2,7 @@
 
 A private library for three projects: Ibiza Pole Retreat, Phuket Pole Retreat, and Flirty Fitness. There is no login.
 
-Pick a project, import videos from Google Drive (or upload a file), then Create Video and Export a vertical MP4. Clips are matched by title and file name. The app does not watch the footage. Twelve Labs is not connected.
+Pick a project, import videos from Google Photos or Google Drive (or upload a file), then Create Video and Export a vertical MP4. Clips are matched by title and file name. The app does not watch the footage. Twelve Labs is not connected.
 
 ## Run on your own computer
 
@@ -29,13 +29,25 @@ If you change `.env.local`, stop the app and run `npm run dev` again.
 ## What you do
 
 1. Pick a project at the top.
-2. On Upload, choose **Import from Google Drive**, or pick a file and **Save to library**.
+2. On Upload, choose **Import from Google Photos** or **Import from Google Drive**, or pick a file and **Save to library**.
 3. Open Media Library to see what was saved.
 4. On Create Video, type a direction with the word “then” between moments. Build the storyboard. Set **Start at second** on a long clip. Choose **Export**, then download `retreat-video.mp4`.
 
 Google Drive setup clicks are in `docs/google-drive-setup.md`. Leave `NEXT_PUBLIC_GOOGLE_API_KEY` empty. If the file window says the developer key is invalid, enable **Google Picker API** in Google Cloud (APIs & Services → Library). You can also paste a Drive file link on the Upload page.
 
 Pasted links are refused unless you set `NEXT_PUBLIC_GOOGLE_DRIVE_READONLY=yes` and add the scope `https://www.googleapis.com/auth/drive.readonly` on the Google consent screen. That screen then asks to see the files in your Drive, not only files you pick. The app stays in Testing. Click Advanced, then Go to Retreat Content Library (unsafe). Restart the app and sign in again.
+
+## Google Photos
+
+Retreat videos that live in Google Photos use **Import from Google Photos**. It uses the same Client ID already in `.env.local`. No new key. Open the app at [http://localhost:43123](http://localhost:43123).
+
+Do these clicks once in [Google Cloud](https://console.cloud.google.com):
+
+1. **APIs & Services → Library**. Search `Photos Picker API`. Click **Enable**.
+2. **Google Auth platform → Data Access → Add or remove scopes**. Add `https://www.googleapis.com/auth/photospicker.mediaitems.readonly`. Click **Update**, then **Save**.
+3. In the app, click **Import from Google Photos** and sign in again. On the “not verified” screen, click **Advanced**, then **Go to Retreat Content Library (unsafe)**.
+
+A video that Google Photos is still processing is skipped. Each file must be 50 MB or smaller.
 
 ## Export limits
 

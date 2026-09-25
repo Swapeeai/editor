@@ -168,3 +168,11 @@ To copy pasted links, turn on the wider read permission:
 The sign-in screen will ask to see the files in your Google Drive, not only the files you pick. That is a wider permission. The app is still in Testing and is not verified. Click **Advanced**, then **Go to Retreat Content Library (unsafe)**, then **Allow**.
 
 Leave this line out if you only want to use the Picker. The Picker does not need it.
+
+## Google Photos
+
+If the retreat videos are in Google Photos, use **Import from Google Photos** on the Upload page. It uses the same Client ID. No new key.
+
+1. **APIs & Services → Library**. Search `Photos Picker API`. Click **Enable**.
+2. **Google Auth platform → Data Access → Add or remove scopes**. Add `https://www.googleapis.com/auth/photospicker.mediaitems.readonly`. Click **Update**, then **Save**.
+3. Open [http://localhost:43123](http://localhost:43123). Click **Import from Google Photos** and sign in again. Click **Advanced**, then **Go to Retreat Content Library (unsafe)**.
