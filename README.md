@@ -26,7 +26,7 @@ Then open [http://localhost:43123](http://localhost:43123). Use that address. Go
 
 If you change `.env.local`, stop the app and run `npm run dev` again.
 
-To replace this folder with a newer zip, save `retreat-content-library.zip` in Downloads (replace the old file), stop the app with Ctrl+C, then run `update-app.ps1`. It keeps `.env.local` and `node_modules`, and it deletes `.next` so the old Upload page cannot stay on screen.
+To install a newer build, stop the app with Ctrl+C, then run `update-app.ps1 -Url` with the download link from the latest release. That downloads the zip, keeps `.env.local` and `node_modules`, and deletes `.next` so the old Upload page cannot stay on screen. Do not reuse an older zip from Downloads.
 
 ## What you do
 

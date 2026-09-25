@@ -1,13 +1,18 @@
-# Replaces the app files from the latest retreat-content-library.zip.
+# Downloads the newest retreat-content-library.zip and copies it over this app.
 # Keeps .env.local and node_modules. Deletes .next so the old page cannot stay on screen.
-# Double-click this file, or run it from PowerShell.
+#
+# One command, after this file is saved:
+#   powershell -NoProfile -ExecutionPolicy Bypass -File update-app.ps1 -Url "PASTE_THE_LINK"
 
 param(
+  [string]$Url,
   [string]$ZipPath,
   [string]$AppDir
 )
 
 $ErrorActionPreference = "Stop"
+$ProgressPreference = "SilentlyContinue"
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 function Test-NewUploadZip {
   param([string]$Path)
@@ -51,6 +56,11 @@ function Find-LatestZip {
   $found | Sort-Object LastWriteTime -Descending
 }
 
+function Pause-Window {
+  Write-Host "Press Enter to close."
+  [void](Read-Host)
+}
+
 $defaultApp = Join-Path $env:USERPROFILE "Desktop\Cursor\editor\retreat-content-library\retreat-content-library"
 if (-not $AppDir) {
   $runningFromTemp = $PSScriptRoot -like (Join-Path $env:TEMP "*")
@@ -65,13 +75,34 @@ if (-not $AppDir) {
 if (-not (Test-Path -LiteralPath $AppDir)) {
   Write-Host "Could not find the app folder:"
   Write-Host $AppDir
-  Write-Host "Press Enter to close."
-  [void](Read-Host)
+  Pause-Window
   exit 1
+}
+
+$downloaded = Join-Path $env:TEMP "retreat-content-library.zip"
+if ($Url) {
+  Write-Host "Downloading the newest app..."
+  if (Test-Path -LiteralPath $downloaded) {
+    Remove-Item -LiteralPath $downloaded -Force
+  }
+  try {
+    Invoke-WebRequest -Uri $Url -OutFile $downloaded -UseBasicParsing
+  } catch {
+    Write-Host "Could not download the app. Check the link, then try again."
+    Pause-Window
+    exit 1
+  }
+  $ZipPath = $downloaded
 }
 
 $candidates = @()
 if ($ZipPath) {
+  if (-not (Test-Path -LiteralPath $ZipPath)) {
+    Write-Host "Could not find the zip:"
+    Write-Host $ZipPath
+    Pause-Window
+    exit 1
+  }
   $candidates = @(Get-Item -LiteralPath $ZipPath)
 } else {
   $candidates = @(Find-LatestZip)
@@ -89,18 +120,9 @@ foreach ($item in $candidates) {
 }
 
 if (-not $chosen) {
-  Write-Host "The zip that was found is the old app. It does not contain Choose videos."
-  Write-Host "Save the latest retreat-content-library.zip into Downloads, replacing the old file, then run this again."
-  if ($candidates) {
-    Write-Host "Looked at:"
-    foreach ($item in $candidates) {
-      if ($item) {
-        Write-Host $item.FullName
-      }
-    }
-  }
-  Write-Host "Press Enter to close."
-  [void](Read-Host)
+  Write-Host "This download is not the new app. It does not contain Choose videos."
+  Write-Host "Use the latest link, then run this again."
+  Pause-Window
   exit 1
 }
 
@@ -116,8 +138,7 @@ Expand-Archive -LiteralPath $chosen -DestinationPath $stage -Force
 $source = Join-Path $stage "retreat-content-library"
 if (-not (Test-Path -LiteralPath (Join-Path $source "package.json"))) {
   Write-Host "The zip did not contain the app folder. Nothing was changed."
-  Write-Host "Press Enter to close."
-  [void](Read-Host)
+  Pause-Window
   exit 1
 }
 
@@ -133,8 +154,7 @@ if (Test-Path -LiteralPath $nextDir) {
     Remove-Item -LiteralPath $nextDir -Recurse -Force -ErrorAction Stop
   } catch {
     Write-Host "The old page is still cached. Click the terminal where the app is running and press Ctrl+C, then run this again."
-    Write-Host "Press Enter to close."
-    [void](Read-Host)
+    Pause-Window
     exit 1
   }
 }
@@ -143,5 +163,4 @@ Write-Host "Done. Now run: npm run dev"
 Write-Host "Folder: $AppDir"
 Write-Host "Then open http://localhost:43123/upload"
 Write-Host "The button must say Choose videos. If it says Choose a file from this computer, this update did not land."
-Write-Host "Press Enter to close."
-[void](Read-Host)
+Pause-Window
