@@ -1,21 +1,21 @@
 // The three libraries Suzanne keeps in this app.
-// Each sample photo or video belongs to exactly one of these.
+// Stored ids stay ibiza, phuket, and flati so existing uploads keep working.
 
 export const projects = [
   {
     id: "ibiza",
     name: "Ibiza Pole Retreat",
-    blurb: "Pole retreat samples set in Ibiza.",
+    blurb: "Ibiza pole retreat.",
   },
   {
     id: "phuket",
     name: "Phuket Pole Retreat",
-    blurb: "Pole retreat samples set in Phuket.",
+    blurb: "Phuket pole retreat.",
   },
   {
     id: "flati",
     name: "Flirty Fitness",
-    blurb: "Fitness and studio samples.",
+    blurb: "Flirty Fitness classes.",
   },
 ] as const
 

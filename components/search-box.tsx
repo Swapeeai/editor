@@ -7,18 +7,14 @@ import { useProject } from "@/components/project-provider"
 import { useSearchQuery } from "@/components/search-provider"
 import { useProjectMedia } from "@/components/use-project-media"
 import { savedMediaAsClip } from "@/lib/saved-media"
-import { filterMediaList, mediaForProject } from "@/lib/sample-media"
+import { filterMediaList } from "@/lib/sample-media"
 
 export function SearchBox() {
   const pathname = usePathname()
   const { projectId, project } = useProject()
   const { query, setQuery } = useSearchQuery()
   const media = useProjectMedia(projectId)
-  const usingUploads =
-    media.status === "ready" && media.configured && media.items.length > 0
-  const clips = usingUploads
-    ? media.items.map(savedMediaAsClip)
-    : mediaForProject(projectId)
+  const clips = media.items.map(savedMediaAsClip)
   const matchCount = filterMediaList(clips, query).length
   const projectCount = clips.length
   const showMatchLink = pathname !== "/library" && query.trim().length > 0
@@ -33,13 +29,13 @@ export function SearchBox() {
         type="search"
         value={query}
         onChange={(event) => setQuery(event.target.value)}
-        placeholder='Try "laughing" or "food"'
+        placeholder="Search a file title"
         autoComplete="off"
         className="h-10 bg-background"
       />
       <p className="text-sm text-muted-foreground">
-        Only {project.name}. Matches titles, tags, places, and file names. It
-        does not look inside a photo or video.
+        Only {project.name}. Matches titles and file names. It does not look
+        inside a video.
         {showMatchLink ? (
           <>
             {" "}
@@ -47,9 +43,7 @@ export function SearchBox() {
               href={`/library?project=${projectId}`}
               className="font-medium text-primary underline"
             >
-              See {matchCount} of {projectCount}{" "}
-              {usingUploads ? "saved files" : "sample items"} in the Media
-              Library
+              See {matchCount} of {projectCount} saved files in the Media Library
             </Link>
             .
           </>

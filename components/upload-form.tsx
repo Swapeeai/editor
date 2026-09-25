@@ -163,8 +163,8 @@ export function UploadForm({ connected }: { connected: boolean }) {
           </p>
         ) : (
           <p className="text-sm text-muted-foreground" role="status">
-            {NOT_CONNECTED_MESSAGE} The preview stays on this computer, and the
-            Media Library keeps showing samples.
+            {NOT_CONNECTED_MESSAGE} The preview stays on this computer. Nothing
+            is saved.
           </p>
         )}
       </div>

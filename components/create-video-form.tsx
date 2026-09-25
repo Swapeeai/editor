@@ -20,22 +20,19 @@ const examples: Record<
     title: "Ibiza Pole Retreat",
     date: "4–10 May 2026",
     location: "Ibiza, Spain",
-    direction:
-      "announce the camp date and place over an Ibiza background, then a dynamic pole trick, then someone clapping, then teaching, then instructors, then food.",
+    direction: "a word from the first file title then a word from the next file title",
   },
   phuket: {
     title: "Phuket Pole Retreat",
     date: "12–18 October 2026",
     location: "Phuket, Thailand",
-    direction:
-      "announce the camp date and place over a Phuket background, then a dynamic pole trick, then someone clapping, then teaching, then instructors, then food.",
+    direction: "a word from the first file title then a word from the next file title",
   },
   flati: {
     title: "Flirty Fitness",
     date: "Mondays in October 2026",
     location: "Flirty studio",
-    direction:
-      "announce the class date and place over a studio background, then someone clapping, then teaching, then instructors, then food.",
+    direction: "a word from the first file title then a word from the next file title",
   },
 }
 
@@ -80,7 +77,6 @@ function CreateVideoFields() {
   const [direction, setDirection] = useState("")
   const [scenes, setScenes] = useState<StoryScene[] | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [usingUploads, setUsingUploads] = useState(false)
   const [building, setBuilding] = useState(false)
 
   function fillExample() {
@@ -119,6 +115,12 @@ function CreateVideoFields() {
     }
 
     const library = libraryForStoryboard(projectId, configured, items)
+    if (!library.fromUploads) {
+      setBuilding(false)
+      setError("Import videos from Google Drive first. There is nothing saved in this project yet.")
+      setScenes(null)
+      return
+    }
     const matches = findMoments(direction, library.clips)
     setBuilding(false)
 
@@ -128,7 +130,6 @@ function CreateVideoFields() {
       return
     }
 
-    setUsingUploads(library.fromUploads)
     setScenes(
       matches.map((match, index) => ({
         id: `scene-${index}-${match.media?.id ?? "none"}`,
@@ -136,6 +137,7 @@ function CreateVideoFields() {
         media: match.media,
         reason: match.reason,
         announce: phraseAnnouncesCamp(match.phrase),
+        clipStart: 0,
       })),
     )
   }
@@ -158,6 +160,15 @@ function CreateVideoFields() {
 
   function removeScene(index: number) {
     setScenes((current) => current?.filter((_, itemIndex) => itemIndex !== index) ?? current)
+  }
+
+  function setClipStart(index: number, start: number) {
+    const next = Number.isFinite(start) ? Math.max(0, start) : 0
+    setScenes((current) =>
+      current?.map((scene, itemIndex) =>
+        itemIndex === index ? { ...scene, clipStart: next } : scene,
+      ) ?? current,
+    )
   }
 
   return (
@@ -222,9 +233,8 @@ function CreateVideoFields() {
           <p className="text-sm text-muted-foreground">
             Use the word “then” between moments. Scenes come only from{" "}
             {project.name}. Other projects are left out.
-            {media.status === "ready" && media.configured && media.items.length > 0
-              ? " Saved files are used first. They have no tags yet, so matching uses the title and file name."
-              : " Until saved files exist, matching uses the sample cards."}
+            {" "}
+            Matching uses the title and file name. It does not watch the footage. Twelve Labs is not connected.
           </p>
         </div>
 
@@ -247,17 +257,18 @@ function CreateVideoFields() {
       {scenes ? (
         <>
           <p className="text-sm text-muted-foreground">
-            {usingUploads
-              ? `These scenes use saved files from ${project.name}.`
-              : `These scenes use sample cards from ${project.name}.`}
+            These scenes use saved files from {project.name}. Words are matched
+            to titles and file names, not by AI.
           </p>
           <Storyboard
             scenes={scenes}
+            projectId={projectId}
             titleText={titleText}
             campDate={campDate}
             campLocation={campLocation}
             onMove={moveScene}
             onRemove={removeScene}
+            onStartChange={setClipStart}
           />
         </>
       ) : (

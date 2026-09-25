@@ -403,7 +403,8 @@ export function DriveImport({ connected }: { connected: boolean }) {
       <p className="text-sm text-muted-foreground">
         Pick videos or photos once. They are copied into {project.name}. The
         app does not sync Drive later. Videos are listed first. Each file must
-        be 50 MB or smaller.
+        be 50 MB or smaller. If Google says the API key is invalid, edit the
+        key and also tick Google Picker API, then Save.
       </p>
       {error ? (
         <p className="text-sm font-medium text-destructive" role="alert">

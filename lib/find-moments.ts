@@ -145,7 +145,7 @@ export function findMoments(
       return {
         phrase,
         media: null,
-        reason: "No title, tag, place, or file name matched these words.",
+        reason: "No file title matched these words. Use words from the file name.",
       }
     }
 

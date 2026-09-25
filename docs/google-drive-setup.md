@@ -98,8 +98,10 @@ The Picker window needs an API key. Your videos are still downloaded with the si
 3. Copy the key when it appears.
 4. Click **Edit API key** (on that message, or click the key name in the list).
 5. Under **API restrictions**, choose **Restrict key**.
-6. Tick **Google Picker API** only.
+6. Tick **Google Picker API** and **Google Drive API**.
 7. Click **Save**.
+
+If you already saved the key with only Google Drive API ticked, the Picker window says the API key is invalid. Open that key, tick **Google Picker API** as well, and click **Save**. That is the one click that fixes it. The app still sends the key, because Google’s Picker requires it.
 
 Do not turn on website restrictions unless you know you need them. If you do, you must allow both `http://localhost:43123/*` and `https://docs.google.com/*`. The Picker opens inside a Google page. Without `docs.google.com`, Google says the API key is invalid.
 
