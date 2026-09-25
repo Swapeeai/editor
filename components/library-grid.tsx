@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { MediaCard } from "@/components/media-card"
@@ -38,11 +38,54 @@ export function LibraryGrid() {
   const media = useProjectMedia(projectId)
   const [mediaFilter, setMediaFilter] = useState<MediaFilter>("all")
   const [sortOrder, setSortOrder] = useState<SortOrder>("newest")
+  const [preparing, setPreparing] = useState(false)
+  const [prepareNote, setPrepareNote] = useState<string | null>(null)
+  const waiting = media.items.some(
+    (item) =>
+      item.mediaType === "video" &&
+      (item.indexStatus === "pending" || item.indexStatus === "indexing"),
+  )
   const videos = media.items.filter((item) => item.mediaType === "video").length
   const photos = media.items.filter((item) => item.mediaType === "photo").length
   const source = sortItems(media.items, sortOrder).map(savedMediaAsClip)
   const items = filterMediaList(source, query, mediaFilter)
   const trimmed = query.trim()
+  const reload = media.reload
+
+  useEffect(() => {
+    if (!media.aiSearch || !waiting) {
+      return
+    }
+    const timer = window.setInterval(() => {
+      void fetch("/api/index/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId }),
+      }).finally(() => {
+        reload()
+      })
+    }, 8000)
+    return () => window.clearInterval(timer)
+  }, [media.aiSearch, projectId, reload, waiting])
+
+  async function prepareVideos() {
+    setPreparing(true)
+    setPrepareNote(null)
+    try {
+      const response = await fetch("/api/index", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId }),
+      })
+      const body = (await response.json()) as { error?: string; message?: string }
+      setPrepareNote(body.error || body.message || "Indexing has started.")
+      media.reload()
+    } catch {
+      setPrepareNote("Could not start indexing. Try again in a moment.")
+    } finally {
+      setPreparing(false)
+    }
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -53,6 +96,30 @@ export function LibraryGrid() {
             ? `${videos} ${videos === 1 ? "video" : "videos"} · ${photos} ${photos === 1 ? "photo" : "photos"}`
             : "Checking this library…"}
         </p>
+        {media.status === "ready" && media.configured && media.aiSearch === false ? (
+          <p className="text-sm text-muted-foreground">AI search not connected yet</p>
+        ) : null}
+        {media.status === "ready" && media.configured && media.aiSearch && !media.indexSchema ? (
+          <p className="text-sm text-muted-foreground">
+            AI search is connected. Run supabase/schema-twelvelabs.sql once in the Supabase SQL editor, then prepare your videos.
+          </p>
+        ) : null}
+        {media.aiSearch && media.indexSchema ? (
+          <div className="flex flex-col items-start gap-2 pt-2">
+            <Button type="button" variant="outline" onClick={prepareVideos} disabled={preparing}>
+              {preparing ? "Starting…" : "Prepare existing videos for AI search"}
+            </Button>
+            {prepareNote ? (
+              <p className="text-sm text-muted-foreground" role="status">
+                {prepareNote}
+              </p>
+            ) : waiting ? (
+              <p className="text-sm text-muted-foreground">
+                Indexing usually takes about a third of the video length.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       <div className="flex flex-wrap items-center gap-2">

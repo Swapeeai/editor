@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { clipDuration, formatTimestamp, MAX_MOMENT_SECONDS } from "@/lib/moment-timing"
 import type { ProjectId } from "@/lib/projects"
 import type { SampleMedia } from "@/lib/sample-media"
 
@@ -14,10 +15,17 @@ export type StoryScene = {
   reason: string
   announce: boolean
   clipStart: number
+  clipEnd: number | null
+  confidence: string | null
+  source: "twelvelabs" | "titles" | "none"
 }
 
 function sceneSeconds(scene: StoryScene) {
-  return scene.media?.mediaType === "photo" ? 3 : 5
+  return clipDuration({
+    photo: scene.media?.mediaType === "photo",
+    start: scene.clipStart,
+    end: scene.media?.mediaType === "photo" ? null : scene.clipEnd,
+  })
 }
 
 function formatClock(seconds: number) {
@@ -59,6 +67,7 @@ export function Storyboard({
 }) {
   const totalSeconds = scenes.reduce((sum, scene) => sum + sceneSeconds(scene), 0)
   const total = formatClock(totalSeconds)
+  const usesMoments = scenes.some((scene) => scene.source === "twelvelabs")
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null)
@@ -88,6 +97,8 @@ export function Storyboard({
           scenes: scenes.map((scene) => ({
             mediaId: scene.media?.id,
             startSeconds: scene.media?.mediaType === "photo" ? 0 : scene.clipStart,
+            endSeconds:
+              scene.media?.mediaType === "video" ? scene.clipEnd : null,
           })),
         }),
       })
@@ -117,7 +128,9 @@ export function Storyboard({
         <p className="text-sm text-muted-foreground">
           {scenes.length === 0
             ? "No scenes yet."
-            : `${scenes.length} scenes · about ${total}. Videos use 5 seconds. Photos use 3 seconds.`}
+            : usesMoments
+              ? `${scenes.length} scenes · about ${total}. Each matched moment keeps its own length, up to 30 seconds.`
+              : `${scenes.length} scenes · about ${total}. Videos use 5 seconds. Photos use 3 seconds.`}
         </p>
       </div>
 
@@ -156,6 +169,12 @@ export function Storyboard({
                       controls
                       src={scene.media.playbackUrl}
                       className="aspect-video w-full rounded-lg bg-black object-contain sm:w-40"
+                      onLoadedMetadata={(event) => {
+                        const video = event.currentTarget
+                        if (scene.clipStart > 0 && video.currentTime < scene.clipStart) {
+                          video.currentTime = scene.clipStart
+                        }
+                      }}
                     />
                   ) : scene.media?.poster ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -187,6 +206,20 @@ export function Storyboard({
                       </p>
                     ) : null}
                     <p className="text-muted-foreground">{scene.reason}</p>
+                    {scene.media?.mediaType === "video" && scene.clipEnd != null ? (
+                      <p>
+                        <span className="text-muted-foreground">Moment: </span>
+                        {formatTimestamp(scene.clipStart)}–{formatTimestamp(scene.clipEnd)}
+                        {scene.confidence ? ` · Confidence: ${scene.confidence}` : ""}
+                      </p>
+                    ) : null}
+                    {scene.media?.mediaType === "video" &&
+                    scene.clipEnd != null &&
+                    scene.clipEnd - scene.clipStart > MAX_MOMENT_SECONDS ? (
+                      <p className="text-muted-foreground">
+                        This moment is longer than 30 seconds. Export uses the first 30 seconds.
+                      </p>
+                    ) : null}
                     {scene.media?.mediaType === "video" ? (
                       <label className="flex flex-col gap-1">
                         <span className="text-muted-foreground">
@@ -251,8 +284,10 @@ export function Storyboard({
         </Button>
         <p className="text-sm text-muted-foreground">
           {ready
-            ? "Makes a vertical 1080×1920 MP4. Each video uses 5 seconds from the start second you set. Photos stay for 3 seconds. There is no sound. A plain title card is added at the start. Twelve Labs is not connected."
-            : "Export needs a saved clip in every scene. Import from Google Drive first, then remove any scene with no match."}
+            ? usesMoments
+              ? "Makes a vertical 1080×1920 MP4. Each video is cut to the moment’s start and end. Photos stay for 3 seconds. There is no sound. A plain title card is added at the start when you fill in the title."
+              : "Makes a vertical 1080×1920 MP4. Each video uses 5 seconds from the start second you set. Photos stay for 3 seconds. There is no sound. A plain title card is added at the start when you fill in the title."
+            : "Export needs a saved clip in every scene. Remove any scene that says nothing matched."}
         </p>
         {exporting ? (
           <p className="text-sm text-muted-foreground" role="status">

@@ -1,12 +1,6 @@
-// Placeholder for Twelve Labs.
-//
-// findMoments is the only function that picks a photo or video
-// for each line of a direction. It matches words to titles, tags, places,
-// and file names. It does not watch the footage, and it does not call any AI.
-//
-// When there is a Twelve Labs account, replace the body of findMoments
-// with that call. Keep the MomentMatch shape so the Create Video page
-// can stay as it is.
+// Title and file-name matching.
+// Create Video uses this when the Twelve Labs key is missing, or when no
+// video in the project is ready to search yet. It does not watch the footage.
 
 import type { SampleMedia } from "@/lib/sample-media"
 

@@ -2,7 +2,7 @@
 
 A private library for three projects: Ibiza Pole Retreat, Phuket Pole Retreat, and Flirty Fitness. There is no login.
 
-Pick a project, import videos from Google Photos or Google Drive (or upload a file), then Create Video and Export a vertical MP4. Clips are matched by title and file name. The app does not watch the footage. Twelve Labs is not connected.
+Pick a project, import videos from Google Photos or Google Drive (or upload a file), then Create Video and Export a vertical MP4. With a Twelve Labs key, each phrase in the direction is found as a moment inside your footage. Without the key, clips are matched by title and file name, and the library says “AI search not connected yet”.
 
 ## Run on your own computer
 
@@ -31,7 +31,21 @@ If you change `.env.local`, stop the app and run `npm run dev` again.
 1. Pick a project at the top.
 2. On Upload, choose **Import from Google Photos** or **Import from Google Drive**, or pick a file and **Save to library**.
 3. Open Media Library to see what was saved.
-4. On Create Video, type a direction with the word “then” between moments. Build the storyboard. Set **Start at second** on a long clip. Choose **Export**, then download `retreat-video.mp4`.
+4. On Create Video, type a direction with the word “then” between moments. Build the storyboard. Set **Start at second** if you want a different in-point. Choose **Export**, then download `retreat-video.mp4`.
+
+## AI search (Twelve Labs)
+
+Do this once, after the app is already running with Supabase:
+
+1. In the Supabase SQL editor, open `supabase/schema-twelvelabs.sql`, paste the whole file, and click Run. Do not run `supabase/schema.sql` again.
+2. In `.env.local`, add a line `TWELVE_LABS_API_KEY=` and paste the key from the Twelve Labs dashboard (API Keys). No quotes. This name is server-only. Do not put it in a `NEXT_PUBLIC_` name, and do not commit `.env.local`.
+3. Stop the app and run `npm run dev` again.
+
+Until that key is set, nothing calls Twelve Labs. Create Video still matches titles, and the library says “AI search not connected yet”.
+
+After the key is set, a new video is sent for indexing when it is saved. For videos already in the library, open Media Library and click **Prepare existing videos for AI search**. Each video shows **Indexing…**, then **Ready for AI search**. Indexing often takes about 30–40% of the video’s length. The free plan includes 600 minutes in total (it does not come back if you delete a video), 5 videos indexing at once, and indexes are kept for 90 days.
+
+`npm install` is not required for this update. The app calls Twelve Labs with `fetch`.
 
 Google Drive setup clicks are in `docs/google-drive-setup.md`. Leave `NEXT_PUBLIC_GOOGLE_API_KEY` empty. If the file window says the developer key is invalid, enable **Google Picker API** in Google Cloud (APIs & Services → Library). You can also paste a Drive file link on the Upload page.
 
@@ -52,7 +66,7 @@ A video that Google Photos is still processing is skipped. Each file must be 50 
 ## Export limits
 
 - The file is vertical, 1080×1920, for Instagram or TikTok.
-- Each video scene is 5 seconds, starting at the second you type. A longer clip is cut. Photos become a 3 second still.
+- When a moment was found, Export cuts that moment’s start and end, up to 30 seconds. Otherwise each video scene is 5 seconds from the start second you set. Photos become a 3 second still.
 - There is no sound.
 - A plain title card is added at the start with the title, date, and place. The letters are simple capitals.
 - Each source file must be 50 MB or smaller. The free Supabase plan holds about 1 GB in total.

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import type { ProjectId } from "@/lib/projects"
 import type { SavedMedia } from "@/lib/saved-media"
 
@@ -8,6 +8,8 @@ export type ProjectMediaState = {
   projectId: ProjectId
   status: "loading" | "ready" | "error"
   configured: boolean
+  aiSearch: boolean | null
+  indexSchema: boolean | null
   items: SavedMedia[]
   error: string | null
 }
@@ -18,6 +20,8 @@ export function useProjectMedia(projectId: ProjectId): ProjectMediaState & { rel
     projectId,
     status: "loading",
     configured: false,
+    aiSearch: null,
+    indexSchema: null,
     items: [],
     error: null,
   })
@@ -29,6 +33,8 @@ export function useProjectMedia(projectId: ProjectId): ProjectMediaState & { rel
       .then(async (response) => {
         const body = (await response.json()) as {
           configured?: boolean
+          aiSearch?: boolean
+          indexSchema?: boolean
           items?: SavedMedia[]
           error?: string
         }
@@ -39,6 +45,8 @@ export function useProjectMedia(projectId: ProjectId): ProjectMediaState & { rel
           projectId,
           status: "ready",
           configured: Boolean(body.configured),
+          aiSearch: Boolean(body.aiSearch),
+          indexSchema: Boolean(body.indexSchema),
           items: Array.isArray(body.items) ? body.items : [],
           error: null,
         })
@@ -51,6 +59,8 @@ export function useProjectMedia(projectId: ProjectId): ProjectMediaState & { rel
           projectId,
           status: "error",
           configured: false,
+          aiSearch: null,
+          indexSchema: null,
           items: [],
           error:
             error instanceof Error ? error.message : "Could not load saved files.",
@@ -60,13 +70,15 @@ export function useProjectMedia(projectId: ProjectId): ProjectMediaState & { rel
     return () => controller.abort()
   }, [projectId, tick])
 
-  const reload = () => setTick((value) => value + 1)
+  const reload = useCallback(() => setTick((value) => value + 1), [])
 
   if (state.projectId !== projectId) {
     return {
       projectId,
       status: "loading",
       configured: false,
+      aiSearch: null,
+      indexSchema: null,
       items: [],
       error: null,
       reload,

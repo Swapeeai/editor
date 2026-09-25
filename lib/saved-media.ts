@@ -1,6 +1,8 @@
 import { projectById, type ProjectId } from "@/lib/projects"
 import type { MediaType, SampleMedia } from "@/lib/sample-media"
 
+export type IndexStatus = "pending" | "indexing" | "ready" | "failed"
+
 export type SavedMedia = {
   id: string
   projectId: ProjectId
@@ -11,6 +13,8 @@ export type SavedMedia = {
   createdAt: string
   signedUrl: string | null
   fileName: string
+  indexStatus?: IndexStatus | null
+  indexError?: string | null
 }
 
 export type MediaRow = {
@@ -21,6 +25,10 @@ export type MediaRow = {
   storage_path: string
   mime_type: string | null
   created_at: string
+  twelvelabs_video_id?: string | null
+  twelvelabs_asset_id?: string | null
+  index_status?: string | null
+  index_error?: string | null
 }
 
 export function safeFileName(name: string) {
@@ -103,6 +111,14 @@ export function rowToSavedMedia(
     createdAt: row.created_at,
     signedUrl,
     fileName: fileNameFromStoragePath(row.storage_path),
+    indexStatus:
+      row.index_status === "pending" ||
+      row.index_status === "indexing" ||
+      row.index_status === "ready" ||
+      row.index_status === "failed"
+        ? row.index_status
+        : null,
+    indexError: typeof row.index_error === "string" ? row.index_error : null,
   }
 }
 
@@ -125,5 +141,7 @@ export function savedMediaAsClip(item: SavedMedia): SampleMedia {
     fileName: item.fileName,
     playbackUrl: item.signedUrl,
     createdAt: item.createdAt,
+    indexStatus: item.indexStatus ?? null,
+    indexError: item.indexError ?? null,
   }
 }

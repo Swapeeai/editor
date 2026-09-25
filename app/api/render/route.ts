@@ -7,6 +7,7 @@ import { NextResponse } from "next/server"
 import { isProjectId, type ProjectId } from "@/lib/projects"
 import { NOT_CONNECTED_MESSAGE } from "@/lib/supabase"
 import { getSupabaseAdmin, MEDIA_BUCKET } from "@/lib/supabase-admin"
+import { clipDuration } from "@/lib/moment-timing"
 import { titleCardPng } from "@/lib/title-card"
 import { MAX_UPLOAD_BYTES } from "@/lib/upload-limit"
 
@@ -20,6 +21,7 @@ const UUID =
 type SceneInput = {
   mediaId?: unknown
   startSeconds?: unknown
+  endSeconds?: unknown
 }
 
 type MediaRow = {
@@ -155,9 +157,12 @@ export async function POST(request: Request) {
     const item = scene as SceneInput
     const mediaId = typeof item.mediaId === "string" ? item.mediaId : ""
     const start = typeof item.startSeconds === "number" ? item.startSeconds : 0
+    const end = typeof item.endSeconds === "number" ? item.endSeconds : null
     return {
       mediaId,
       start: Number.isFinite(start) ? Math.min(600, Math.max(0, start)) : 0,
+      end:
+        end != null && Number.isFinite(end) ? Math.min(600, Math.max(0, end)) : null,
     }
   })
 
@@ -253,7 +258,11 @@ export async function POST(request: Request) {
       const source = join(dir, `source-${index}.${ext}`)
       await writeFile(source, bytes)
       const output = join(dir, `scene-${index}.mp4`)
-      const duration = photo ? 3 : 5
+      const duration = clipDuration({
+        photo,
+        start: photo ? 0 : scene.start,
+        end: photo ? null : scene.end,
+      })
       await writeClip(source, output, {
         photo,
         start: photo ? 0 : scene.start,

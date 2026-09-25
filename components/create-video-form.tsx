@@ -6,7 +6,6 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { useProject } from "@/components/project-provider"
 import { useProjectMedia } from "@/components/use-project-media"
-import { findMoments } from "@/lib/find-moments"
 import type { ProjectId } from "@/lib/projects"
 import { savedMediaAsClip, type SavedMedia } from "@/lib/saved-media"
 import { mediaForProject, type SampleMedia } from "@/lib/sample-media"
@@ -76,6 +75,7 @@ function CreateVideoFields() {
   const [campLocation, setCampLocation] = useState("")
   const [direction, setDirection] = useState("")
   const [scenes, setScenes] = useState<StoryScene[] | null>(null)
+  const [note, setNote] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [building, setBuilding] = useState(false)
 
@@ -85,6 +85,7 @@ function CreateVideoFields() {
     setCampLocation(example.location)
     setDirection(example.direction)
     setError(null)
+    setNote(null)
   }
 
   async function buildStoryboard() {
@@ -96,6 +97,7 @@ function CreateVideoFields() {
 
     setBuilding(true)
     setError(null)
+    setNote(null)
 
     let configured = media.configured
     let items = media.items
@@ -117,29 +119,57 @@ function CreateVideoFields() {
     const library = libraryForStoryboard(projectId, configured, items)
     if (!library.fromUploads) {
       setBuilding(false)
-      setError("Import videos from Google Drive first. There is nothing saved in this project yet.")
-      setScenes(null)
-      return
-    }
-    const matches = findMoments(direction, library.clips)
-    setBuilding(false)
-
-    if (matches.length === 0) {
-      setError("Add a few words about what you want to see.")
+      setError("Import videos first. There is nothing saved in this project yet.")
       setScenes(null)
       return
     }
 
-    setScenes(
-      matches.map((match, index) => ({
-        id: `scene-${index}-${match.media?.id ?? "none"}`,
-        phrase: match.phrase,
-        media: match.media,
-        reason: match.reason,
-        announce: phraseAnnouncesCamp(match.phrase),
-        clipStart: 0,
-      })),
-    )
+    try {
+      const response = await fetch("/api/moments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId, direction }),
+      })
+      const body = (await response.json()) as {
+        error?: string
+        note?: string | null
+        scenes?: Array<{
+          phrase: string
+          mediaId: string | null
+          start: number | null
+          end: number | null
+          confidence: string | null
+          source: "twelvelabs" | "titles" | "none"
+          reason: string
+        }>
+      }
+      if (!response.ok) {
+        throw new Error(body.error || "Could not build the storyboard.")
+      }
+      const built = Array.isArray(body.scenes) ? body.scenes : []
+      if (built.length === 0) {
+        throw new Error("Add a few words about what you want to see.")
+      }
+      setNote(body.note ?? null)
+      setScenes(
+        built.map((scene, index) => ({
+          id: `scene-${index}-${scene.mediaId ?? "none"}`,
+          phrase: scene.phrase,
+          media: library.clips.find((clip) => clip.id === scene.mediaId) ?? null,
+          reason: scene.reason,
+          announce: phraseAnnouncesCamp(scene.phrase),
+          clipStart: typeof scene.start === "number" ? scene.start : 0,
+          clipEnd: typeof scene.end === "number" ? scene.end : null,
+          confidence: scene.confidence,
+          source: scene.source,
+        })),
+      )
+    } catch (caught) {
+      setScenes(null)
+      setError(caught instanceof Error ? caught.message : "Could not build the storyboard.")
+    } finally {
+      setBuilding(false)
+    }
   }
 
   function moveScene(index: number, directionDelta: -1 | 1) {
@@ -165,9 +195,13 @@ function CreateVideoFields() {
   function setClipStart(index: number, start: number) {
     const next = Number.isFinite(start) ? Math.max(0, start) : 0
     setScenes((current) =>
-      current?.map((scene, itemIndex) =>
-        itemIndex === index ? { ...scene, clipStart: next } : scene,
-      ) ?? current,
+      current?.map((scene, itemIndex) => {
+        if (itemIndex !== index) {
+          return scene
+        }
+        const end = scene.clipEnd != null && next < scene.clipEnd ? scene.clipEnd : null
+        return { ...scene, clipStart: next, clipEnd: end }
+      }) ?? current,
     )
   }
 
@@ -231,10 +265,12 @@ function CreateVideoFields() {
             className="min-h-28"
           />
           <p className="text-sm text-muted-foreground">
-            Use the word “then” between moments. Scenes come only from{" "}
-            {project.name}. Other projects are left out.
-            {" "}
-            Matching uses the title and file name. It does not watch the footage. Twelve Labs is not connected.
+            Use the word “then” between moments. Scenes come only from {project.name}.
+            {media.aiSearch === false
+              ? " AI search not connected yet. Matching uses the title and file name."
+              : media.aiSearch
+                ? " Each phrase is searched inside this project’s footage."
+                : ""}
           </p>
         </div>
 
@@ -256,10 +292,15 @@ function CreateVideoFields() {
 
       {scenes ? (
         <>
-          <p className="text-sm text-muted-foreground">
-            These scenes use saved files from {project.name}. Words are matched
-            to titles and file names, not by AI.
-          </p>
+          {note ? (
+            <p className="text-sm text-muted-foreground" role="status">
+              {note}
+            </p>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              These scenes use moments found in {project.name}.
+            </p>
+          )}
           <Storyboard
             scenes={scenes}
             projectId={projectId}

@@ -103,7 +103,61 @@ export function MediaCard({
           </span>
           <span className="text-xs text-muted-foreground">{kind}</span>
           {uploaded ? <span className="text-xs text-muted-foreground">{uploaded}</span> : null}
+          {item.mediaType === "video" &&
+          (item.indexStatus === "pending" || item.indexStatus === "indexing") ? (
+            <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium">
+              Indexing…
+            </span>
+          ) : null}
+          {item.mediaType === "video" && item.indexStatus === "ready" ? (
+            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium">
+              Ready for AI search
+            </span>
+          ) : null}
+          {item.mediaType === "video" && item.indexStatus === "failed" ? (
+            <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
+              Failed
+            </span>
+          ) : null}
         </div>
+        {item.mediaType === "video" && item.indexStatus === "failed" ? (
+          <div className="flex flex-col items-start gap-1">
+            {item.indexError ? (
+              <p className="text-xs text-destructive">{item.indexError}</p>
+            ) : null}
+            <Button
+              type="button"
+              variant="outline"
+              disabled={busy}
+              onClick={() => {
+                void (async () => {
+                  setBusy(true)
+                  setError(null)
+                  try {
+                    const response = await fetch("/api/index/retry", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ id: item.id }),
+                    })
+                    const body = (await response.json()) as { error?: string }
+                    if (!response.ok || body.error) {
+                      throw new Error(body.error || "Could not retry indexing.")
+                    }
+                    onChanged?.()
+                  } catch (caught) {
+                    setError(
+                      caught instanceof Error ? caught.message : "Could not retry indexing.",
+                    )
+                  } finally {
+                    setBusy(false)
+                  }
+                })()
+              }}
+            >
+              Retry
+            </Button>
+          </div>
+        ) : null}
         <CardTitle>{item.title}</CardTitle>
         <div className="flex flex-col gap-2 pt-1">
           <label className="flex flex-col gap-1 text-sm">

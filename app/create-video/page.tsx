@@ -10,10 +10,10 @@ export default function CreateVideoPage() {
       <div className="flex max-w-3xl flex-col gap-3">
         <h1 className="text-3xl font-semibold tracking-tight">Create Video</h1>
         <p className="text-base leading-7 text-muted-foreground">
-          Type what you want, using the word “then” between moments. The app
-          matches those words to file titles in this project. It does not watch
-          the footage. Twelve Labs is not connected. Set the start second on
-          each clip yourself, then Export a vertical MP4.
+          Type what you want, using the word “then” between moments. When AI
+          search is connected, each phrase is found inside your footage. You can
+          still change the start second and the scene order, then Export a
+          vertical MP4.
         </p>
       </div>
       <CreateVideoForm />

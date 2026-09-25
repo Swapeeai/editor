@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server"
+import { after, NextResponse } from "next/server"
+import { advanceMedia, markUploadedVideo } from "@/lib/ai-index"
 import { isProjectId } from "@/lib/projects"
 import {
   mediaTypeFromFile,
@@ -114,11 +115,22 @@ export async function POST(request: Request) {
     )
   }
 
+  const queued = await markUploadedVideo(id, storagePath, mediaType)
+  if (queued) {
+    after(() => {
+      void advanceMedia(id)
+    })
+  }
+
   const signed = await supabase.storage
     .from(MEDIA_BUCKET)
     .createSignedUrl(storagePath, 60 * 60)
 
-  return NextResponse.json({
-    item: rowToSavedMedia(inserted.data as MediaRow, signed.data?.signedUrl ?? null),
-  })
+  const item = rowToSavedMedia(inserted.data as MediaRow, signed.data?.signedUrl ?? null)
+  if (queued) {
+    item.indexStatus = "pending"
+    item.indexError = null
+  }
+
+  return NextResponse.json({ item })
 }

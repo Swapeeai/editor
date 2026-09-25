@@ -20,6 +20,8 @@ export type SampleMedia = {
   fileName?: string
   playbackUrl?: string | null
   createdAt?: string
+  indexStatus?: "pending" | "indexing" | "ready" | "failed" | null
+  indexError?: string | null
 }
 
 const phuket = {

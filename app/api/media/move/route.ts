@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server"
+import { after, NextResponse } from "next/server"
+import { advanceMedia } from "@/lib/ai-index"
 import { isProjectId, projectById } from "@/lib/projects"
 import { movedStoragePath, rowToSavedMedia, type MediaRow } from "@/lib/saved-media"
 import { NOT_CONNECTED_MESSAGE } from "@/lib/supabase"
@@ -72,8 +73,27 @@ export async function POST(request: Request) {
     )
   }
 
+  const isVideo = row.media_type === "video" && !nextPath.includes("/exports/")
+  if (isVideo) {
+    const reset = await supabase
+      .from("media_items")
+      .update({
+        twelvelabs_video_id: null,
+        index_status: "pending",
+        index_error: null,
+      })
+      .eq("id", id)
+    if (!reset.error) {
+      after(() => {
+        void advanceMedia(id)
+      })
+    }
+  }
+
   const signed = await supabase.storage.from(MEDIA_BUCKET).createSignedUrl(nextPath, 60 * 60)
-  return NextResponse.json({
-    item: rowToSavedMedia(updated.data as MediaRow, signed.data?.signedUrl ?? null),
-  })
+  const item = rowToSavedMedia(updated.data as MediaRow, signed.data?.signedUrl ?? null)
+  if (isVideo) {
+    item.indexStatus = "pending"
+  }
+  return NextResponse.json({ item })
 }
