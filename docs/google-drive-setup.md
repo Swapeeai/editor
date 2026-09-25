@@ -21,11 +21,15 @@ Do not paste your Google values into chat. Put them only in `.env.local`. Do not
 
 ## 3. Turn on the two APIs
 
+The file window needs **Google Picker API** enabled on this project. If it is off, Google says “The API developer key is invalid” even when the key has no restrictions. Enabling this API is the fix.
+
 1. Click the menu (three lines) at the top left.
 2. Click **APIs & Services**, then **Library**.
 3. Search for `Google Drive API`. Open it. Click **Enable**.
 4. Click the back arrow, or open **Library** again.
 5. Search for `Google Picker API`. Open it. Click **Enable**.
+
+If the button says **Manage** instead of **Enable**, it is already on.
 
 ## 4. Set up the Google Auth Platform
 
@@ -89,21 +93,17 @@ You only need to do this for the Gmail you added as a test user.
 9. Copy the **Client ID**. It is a long string ending in `.apps.googleusercontent.com`.
 10. You do not need a client secret for this. If Google shows one, do not put it in the app.
 
-## 7. Create the API key
+## 7. Leave the API key empty
 
-The Picker window needs an API key. Your videos are still downloaded with the sign-in token, not with this key.
+The app does not need an API key. The file window uses your sign-in and the project number.
 
-1. Click the menu, then **APIs & Services**, then **Credentials**.
-2. Click **Create credentials**, then **API key**.
-3. Copy the key when it appears.
-4. Click **Edit API key** (on that message, or click the key name in the list).
-5. Under **API restrictions**, choose **Restrict key**.
-6. Tick **Google Picker API** and **Google Drive API**.
-7. Click **Save**.
+In `.env.local`, leave this line empty:
 
-If you already saved the key with only Google Drive API ticked, the Picker window says the API key is invalid. Open that key, tick **Google Picker API** as well, and click **Save**. That is the one click that fixes it. The app still sends the key, because Google’s Picker requires it.
+`NEXT_PUBLIC_GOOGLE_API_KEY=`
 
-Do not turn on website restrictions unless you know you need them. If you do, you must allow both `http://localhost:43123/*` and `https://docs.google.com/*`. The Picker opens inside a Google page. Without `docs.google.com`, Google says the API key is invalid.
+If a key is filled in and Google says the developer key is invalid, delete that value, save, and restart the app. A bad key is worse than no key. The other fix is step 3: **Google Picker API** must be enabled.
+
+You do not need to create a key. If you already created one, you can ignore it.
 
 ## 8. Copy the project number
 
@@ -113,23 +113,22 @@ Do not turn on website restrictions unless you know you need them. If you do, yo
 
 This number is what the app calls the App ID.
 
-## 9. Paste the three values and restart
+## 9. Paste the values and restart
 
 1. In the project folder on your computer, open `.env.local`.
-2. Fill in these three lines. Do not add quotes.
+2. Fill in these two lines. Do not add quotes.
 
    `NEXT_PUBLIC_GOOGLE_CLIENT_ID=` the Client ID from step 6
 
-   `NEXT_PUBLIC_GOOGLE_API_KEY=` the API key from step 7
-
    `NEXT_PUBLIC_GOOGLE_APP_ID=` the project number from step 8
 
-3. Save the file.
-4. In the terminal where the app is running, press Ctrl+C.
-5. Run `npm run dev` again.
-6. Open [http://localhost:43123](http://localhost:43123). Pick a project at the top. Open **Upload**. The button should say **Import from Google Drive**.
+3. Leave `NEXT_PUBLIC_GOOGLE_API_KEY=` empty.
+4. Save the file.
+5. In the terminal where the app is running, press Ctrl+C.
+6. Run `npm run dev` again.
+7. Open [http://localhost:43123](http://localhost:43123). Use that address, not `http://127.0.0.1:43123`. Google only allows the address from step 6. Pick a project at the top. Open **Upload**. The button should say **Import from Google Drive**.
 
-If the button still says **Google Drive not connected yet — see setup guide**, one of the three lines is empty, or the app was not restarted.
+If the button still says **Google Drive not connected yet — see setup guide**, the Client ID or the project number is empty, or the app was not restarted.
 
 ## 10. Import
 
@@ -141,3 +140,31 @@ If the button still says **Google Drive not connected yet — see setup guide**,
 6. Imported files show up in the Media Library for that project.
 
 The free Supabase plan holds about 1 GB for all files together, and 50 MB for each file.
+
+If the Google window says the developer key is invalid, the app shows a short message instead of Google’s text. The fix is step 3: enable **Google Picker API**. You can also paste links, below.
+
+## 11. Paste a Drive link
+
+On Upload, under the import button, there is **Paste a Google Drive link**. Put one file link on each line, then choose **Import these links**. A folder link will not work.
+
+The normal permission is `drive.file`. It only covers files you choose in the Picker window, or files this app created. A pasted link to any other file is refused. The page says so. It does not show Google’s raw error.
+
+To copy pasted links, turn on the wider read permission:
+
+1. In `.env.local`, add this line:
+
+   `NEXT_PUBLIC_GOOGLE_DRIVE_READONLY=yes`
+
+2. In **Google Auth platform**, click **Data Access**.
+3. Click **Add or remove scopes**.
+4. Add this exact scope:
+
+   `https://www.googleapis.com/auth/drive.readonly`
+
+5. Click **Update**, then **Save**.
+6. Restart the app (`Ctrl+C`, then `npm run dev`).
+7. Click **Import these links** and sign in again.
+
+The sign-in screen will ask to see the files in your Google Drive, not only the files you pick. That is a wider permission. The app is still in Testing and is not verified. Click **Advanced**, then **Go to Retreat Content Library (unsafe)**, then **Allow**.
+
+Leave this line out if you only want to use the Picker. The Picker does not need it.

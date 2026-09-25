@@ -22,7 +22,7 @@ On Mac or Linux, the copy command is `cp .env.example .env.local`.
 
 Open `.env.local` and paste your Supabase and Google values. Never commit `.env.local`. If you already have that file, keep it when you replace this folder.
 
-Then open [http://localhost:43123](http://localhost:43123).
+Then open [http://localhost:43123](http://localhost:43123). Use that address. Google sign-in only allows `http://localhost:43123`, not `127.0.0.1`.
 
 If you change `.env.local`, stop the app and run `npm run dev` again.
 
@@ -33,7 +33,9 @@ If you change `.env.local`, stop the app and run `npm run dev` again.
 3. Open Media Library to see what was saved.
 4. On Create Video, type a direction with the word “then” between moments. Build the storyboard. Set **Start at second** on a long clip. Choose **Export**, then download `retreat-video.mp4`.
 
-Google Drive setup clicks are in `docs/google-drive-setup.md`. If the Picker says the API key is invalid, edit the key and also tick **Google Picker API**, then Save.
+Google Drive setup clicks are in `docs/google-drive-setup.md`. Leave `NEXT_PUBLIC_GOOGLE_API_KEY` empty. If the file window says the developer key is invalid, enable **Google Picker API** in Google Cloud (APIs & Services → Library). You can also paste a Drive file link on the Upload page.
+
+Pasted links are refused unless you set `NEXT_PUBLIC_GOOGLE_DRIVE_READONLY=yes` and add the scope `https://www.googleapis.com/auth/drive.readonly` on the Google consent screen. That screen then asks to see the files in your Drive, not only files you pick. The app stays in Testing. Click Advanced, then Go to Retreat Content Library (unsafe). Restart the app and sign in again.
 
 ## Export limits
 
