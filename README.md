@@ -22,7 +22,9 @@ On Mac or Linux, the copy command is `cp .env.example .env.local`.
 
 `npm install` is required. It downloads the video tool (`ffmpeg-static`) that Export uses.
 
-Open `.env.local` and paste your Supabase and Google values. Never commit `.env.local`. If you already have that file, keep it when you replace this folder.
+Open Settings in the app and paste your Supabase, Google, and Twelve Labs values. They are written to `.env.local` on this computer. Never commit `.env.local`. If you already have that file, keep it when you replace this folder.
+
+Settings has no login. The page and its save route work only while you run the app on your own computer (`npm run dev` at localhost). They are turned off in a production build, and they refuse any other host. Do not put this app on the public internet.
 
 Then open [http://localhost:43123](http://localhost:43123). Use that address. Google sign-in only allows `http://localhost:43123`, not `127.0.0.1`.
 
@@ -47,20 +49,22 @@ Run `npm install` again only when `git pull` changes `package.json`. Do not dele
 2. On Upload, click **Choose videos**. Hold Ctrl (or Shift) to select many, then **Save**. iPhone HEIC photos are turned into JPEG automatically. The batch saves to the project under **Saving to**. Files over the upload limit are skipped. A failed file does not stop the rest. The limit is `NEXT_PUBLIC_MAX_UPLOAD_MB` in `.env.local` (5000, meaning 5 GB, when that line is missing). It must not be higher than the Supabase global file size limit. You can also import from Google Photos or Google Drive.
 
 iPhone photos use `heic-convert`. That package includes libheif as JavaScript, so Windows does not need another install. This update changes `package.json`, so run `npm install` once after you update.
-3. Open Media Library to see what was saved. If an iPhone photo was already saved as HEIC, click **Convert iPhone photos to JPEG**. It converts only those photos in the project you have open. Other files stay as they are.
-4. On Create Video, type a direction with the word “then” between moments. Build the storyboard. Set **Start at second** if you want a different in-point. Choose **Export**, then download `retreat-video.mp4`.
+3. Open Media Library to see what was saved. The list is paged, 24 at a time, so a few hundred clips stay quick to scroll. Click a title to rename it. Keywords are comma separated and show on the card, with the folder names. Select files and use **Add to folder**, **Add keyword**, or **Delete selected**. On a video, **Cut** saves a real new clip of the range you choose. You can save several parts from one video. Each part keeps the keywords and folders, and remembers which video it came from. **Delete the original** asks you to confirm and tells you how many parts will stay. Deleting the original does not delete those parts. A short part uses fewer of the 600 indexing minutes than the whole video, so cut before you prepare a video for AI search. Photos have no Cut button. If an iPhone photo was already saved as HEIC, click **Convert iPhone photos to JPEG**. It converts only those photos in the project you have open. Other files stay as they are. On a video, **Review moments** asks Twelve Labs for the strongest parts. Keep, trim, or reject each one, or keep the whole video, then save. Create Video uses those saved moments first.
+4. Folders belong to the project you have open. Examples: Adam, Jenny, Phuket, Boat trip, Party. A clip can be in more than one. **All** and **Unsorted** are always there. Create, rename, or delete a folder. Deleting a folder does not delete the clips.
+5. Open **Review** to work through clips one at a time. The player starts muted, and the next clip is loaded behind it. Edit the title and keywords, tick folders, then **Save** (or Enter). **Skip** (or the right arrow) leaves it unreviewed. **D** deletes after you confirm. The line **37 of 269 reviewed** is how many are done. **Needs review** is the ones you have not saved yet, so you can leave and come back.
+6. On Create Video, write the brief in sections. A section starts with a time, such as `0–3 sec — Paradise` or `00:00–00:03`. The lines under it are what to look for. A line that starts with `Text:` is burned onto that scene. A line `Folder: Boat trip` searches only that folder. Style and closing notes are shown as “not a scene” and are left out of the video. You can still write `then` between moments, or put one scene on each line. Build the storyboard. If AI search is not connected, or nothing matches closely, the scene says so and Export will not guess a clip. Choose **Export**, then download `retreat-video.mp4`. The picture is 1080×1920. There is no sound and no music.
 
 ## AI search (Twelve Labs)
 
 Do this once, after the app is already running with Supabase:
 
-1. In the Supabase SQL editor, open `supabase/schema-twelvelabs.sql`, paste the whole file, and click Run. Do not run `supabase/schema.sql` again.
+1. In the Supabase SQL editor, open `supabase/schema-update.sql`, paste the whole file, and click Run. That one file adds Twelve Labs columns, keywords, folders, the reviewed flag, video length, approved moments, the indexing-minute log, and which video a cut came from. It is safe if you already ran the earlier Twelve Labs SQL. Do not run `supabase/schema.sql` again.
 2. In `.env.local`, add a line `TWELVE_LABS_API_KEY=` and paste the key from the Twelve Labs dashboard (API Keys). No quotes. This name is server-only. Do not put it in a `NEXT_PUBLIC_` name, and do not commit `.env.local`.
 3. Stop the app and run `npm run dev` again.
 
 Until that key is set, nothing calls Twelve Labs. Create Video still matches titles, and the library says “AI search not connected yet”.
 
-After the key is set, a new video is sent for indexing when it is saved. For videos already in the library, open Media Library and click **Prepare existing videos for AI search**. Each video shows **Indexing…**, then **Ready for AI search**. Indexing often takes about 30–40% of the video’s length. The free plan includes 600 minutes in total (it does not come back if you delete a video), 5 videos indexing at once, and indexes are kept for 90 days.
+A new upload is not sent for indexing on its own. In Media Library, tick the videos you want, then **Prepare selected videos for AI search**. The app reads each length, shows about how many minutes that is, how many of the 600 are already used (an estimate), and asks you to confirm. It will not send a video whose length it cannot read, and it will not send a selection that would go past 600. Five videos index at once. **Continue** starts the next waiting ones. **Stop waiting videos** clears the ones not sent yet. Videos already sent finish. The free plan includes 600 minutes in total (it does not come back if you delete a video), and indexes are kept for 90 days. The header figure is an estimate, because Twelve Labs does not show a lifetime total.
 
 `npm install` is not required for this update. The app calls Twelve Labs with `fetch`.
 
@@ -83,8 +87,8 @@ A video that Google Photos is still processing is skipped. Each file must be wit
 ## Export limits
 
 - The file is vertical, 1080×1920, for Instagram or TikTok.
-- When a moment was found, Export cuts that moment’s start and end, up to 30 seconds. Otherwise each video scene is 5 seconds from the start second you set. Photos become a 3 second still.
-- There is no sound.
+- Each scene keeps the length written in the brief. A long section can use more than one clip. Photos become a 3 second still when the brief does not set a shorter time.
+- There is no sound and no music.
 - A plain title card is added at the start with the title, date, and place. The letters are simple capitals.
 - Each source file must be within the upload limit (5 GB unless `NEXT_PUBLIC_MAX_UPLOAD_MB` is set lower). That number must not exceed the Supabase project's global file size limit.
 - If the finished MP4 is over the upload limit, you can still download it. It is not saved in the library.

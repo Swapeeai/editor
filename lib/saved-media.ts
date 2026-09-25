@@ -15,6 +15,12 @@ export type SavedMedia = {
   fileName: string
   indexStatus?: IndexStatus | null
   indexError?: string | null
+  keywords?: string
+  durationSeconds?: number | null
+  folderNames?: string[]
+  reviewedAt?: string | null
+  sourceMediaId?: string | null
+  sourceTitle?: string | null
 }
 
 export type MediaRow = {
@@ -29,6 +35,11 @@ export type MediaRow = {
   twelvelabs_asset_id?: string | null
   index_status?: string | null
   index_error?: string | null
+  keywords?: string | null
+  duration_seconds?: number | null
+  reviewed_at?: string | null
+  source_media_id?: string | null
+  source_title?: string | null
 }
 
 export function safeFileName(name: string) {
@@ -111,6 +122,15 @@ export function rowToSavedMedia(
     createdAt: row.created_at,
     signedUrl,
     fileName: fileNameFromStoragePath(row.storage_path),
+    keywords: typeof row.keywords === "string" ? row.keywords : "",
+    durationSeconds:
+      typeof row.duration_seconds === "number" && row.duration_seconds > 0
+        ? row.duration_seconds
+        : null,
+    folderNames: [],
+    reviewedAt: typeof row.reviewed_at === "string" ? row.reviewed_at : null,
+    sourceMediaId: typeof row.source_media_id === "string" ? row.source_media_id : null,
+    sourceTitle: typeof row.source_title === "string" ? row.source_title : null,
     indexStatus:
       row.index_status === "pending" ||
       row.index_status === "indexing" ||
@@ -124,6 +144,13 @@ export function rowToSavedMedia(
 
 // Turns a saved row into the shape findMoments already understands.
 // Uploads have no tags yet, so title and fileName do the matching.
+export function keywordTags(value: string | null | undefined) {
+  return (value ?? "")
+    .split(",")
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0)
+}
+
 export function savedMediaAsClip(item: SavedMedia): SampleMedia {
   const project = projectById(item.projectId)
   const year = Number(String(item.createdAt).slice(0, 4))
@@ -136,7 +163,13 @@ export function savedMediaAsClip(item: SavedMedia): SampleMedia {
     retreatName: project.name,
     year: Number.isFinite(year) && year > 0 ? year : new Date().getFullYear(),
     location: "Uploaded file",
-    tags: [],
+    tags: [...keywordTags(item.keywords), ...(item.folderNames ?? [])],
+    keywords: item.keywords ?? "",
+    folderNames: item.folderNames ?? [],
+    reviewedAt: item.reviewedAt ?? null,
+    sourceMediaId: item.sourceMediaId ?? null,
+    sourceTitle: item.sourceTitle ?? null,
+    durationSeconds: item.durationSeconds ?? null,
     poster: item.mediaType === "photo" && item.signedUrl ? item.signedUrl : "",
     fileName: item.fileName,
     playbackUrl: item.signedUrl,

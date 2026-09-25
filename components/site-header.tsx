@@ -10,7 +10,11 @@ const links = [
   { href: "/", label: "Home" },
   { href: "/upload", label: "Upload" },
   { href: "/library", label: "Media Library" },
+  { href: "/review", label: "Review" },
   { href: "/create-video", label: "Create Video" },
+  ...(process.env.NODE_ENV === "development"
+    ? [{ href: "/settings", label: "Settings" }]
+    : []),
 ]
 
 export function SiteHeader() {

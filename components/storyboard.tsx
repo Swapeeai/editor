@@ -4,37 +4,43 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { clipDuration, formatTimestamp, MAX_MOMENT_SECONDS } from "@/lib/moment-timing"
+import { formatTimestamp } from "@/lib/moment-timing"
 import type { ProjectId } from "@/lib/projects"
 import type { SampleMedia } from "@/lib/sample-media"
+import type { PlannedScene, StoryClip } from "@/lib/scene-plan"
 
-export type StoryScene = {
+export type VisibleClip = StoryClip & { media: SampleMedia | null }
+
+export type StoryScene = Omit<PlannedScene, "clips"> & {
   id: string
-  phrase: string
-  media: SampleMedia | null
-  reason: string
-  announce: boolean
-  clipStart: number
-  clipEnd: number | null
-  confidence: string | null
-  source: "twelvelabs" | "titles" | "none"
+  clips: VisibleClip[]
 }
 
 function sceneSeconds(scene: StoryScene) {
-  return clipDuration({
-    photo: scene.media?.mediaType === "photo",
-    start: scene.clipStart,
-    end: scene.media?.mediaType === "photo" ? null : scene.clipEnd,
-  })
+  if (scene.kind === "note") {
+    return 0
+  }
+  if (scene.durationSeconds != null) {
+    return scene.durationSeconds
+  }
+  return scene.clips.reduce((sum, clip) => sum + clip.seconds, 0)
 }
 
 function formatClock(seconds: number) {
-  const minutes = Math.floor(seconds / 60)
-  const rest = Math.round(seconds % 60)
+  const safe = Math.max(0, seconds)
+  const minutes = Math.floor(safe / 60)
+  const rest = Math.round(safe % 60)
   return `${minutes}:${String(rest).padStart(2, "0")}`
 }
 
 function rangeLabel(scenes: StoryScene[], index: number) {
+  const scene = scenes[index]
+  if (scene.kind === "note") {
+    return "Not a scene"
+  }
+  if (scene.startSeconds != null && scene.endSeconds != null) {
+    return `${formatClock(scene.startSeconds)}–${formatClock(scene.endSeconds)}`
+  }
   let start = 0
   for (let item = 0; item < index; item += 1) {
     start += sceneSeconds(scenes[item])
@@ -63,16 +69,21 @@ export function Storyboard({
   campLocation: string
   onMove: (index: number, direction: -1 | 1) => void
   onRemove: (index: number) => void
-  onStartChange: (index: number, start: number) => void
+  onStartChange: (sceneIndex: number, clipIndex: number, start: number) => void
 }) {
-  const totalSeconds = scenes.reduce((sum, scene) => sum + sceneSeconds(scene), 0)
-  const total = formatClock(totalSeconds)
-  const usesMoments = scenes.some((scene) => scene.source === "twelvelabs")
+  const realScenes = scenes.filter((scene) => scene.kind === "scene")
+  const unmatched = realScenes.filter((scene) => !scene.filled)
+  const totalSeconds = realScenes.reduce((sum, scene) => sum + sceneSeconds(scene), 0)
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null)
   const [exportNote, setExportNote] = useState<string | null>(null)
-  const ready = scenes.length > 0 && scenes.every((scene) => scene.media && SAVED_ID.test(scene.media.id))
+  const ready =
+    realScenes.length > 0 &&
+    unmatched.length === 0 &&
+    realScenes.every((scene) =>
+      scene.clips.every((clip) => clip.media && SAVED_ID.test(clip.media.id)),
+    )
 
   async function exportVideo() {
     if (!ready || exporting) {
@@ -86,6 +97,15 @@ export function Storyboard({
       setDownloadUrl(null)
     }
     try {
+      const payload = realScenes.flatMap((scene) =>
+        scene.clips.map((clip) => ({
+          mediaId: clip.media?.id,
+          startSeconds: clip.photo ? 0 : clip.start,
+          endSeconds: clip.photo ? null : clip.end,
+          durationSeconds: clip.seconds,
+          caption: scene.caption,
+        })),
+      )
       const response = await fetch("/api/render", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -94,17 +114,12 @@ export function Storyboard({
           titleText,
           date: campDate,
           location: campLocation,
-          scenes: scenes.map((scene) => ({
-            mediaId: scene.media?.id,
-            startSeconds: scene.media?.mediaType === "photo" ? 0 : scene.clipStart,
-            endSeconds:
-              scene.media?.mediaType === "video" ? scene.clipEnd : null,
-          })),
+          scenes: payload,
         }),
       })
       if (!response.ok) {
-        const payload = (await response.json()) as { error?: string }
-        setExportError(payload.error || "Could not make the video.")
+        const payloadBody = (await response.json()) as { error?: string }
+        setExportError(payloadBody.error || "Could not make the video.")
         return
       }
       const blob = await response.blob()
@@ -112,7 +127,7 @@ export function Storyboard({
       const note = response.headers.get("X-Export-Note")
       const saved = response.headers.get("X-Export-Saved")
       setExportNote(
-        `${note ?? ""} ${saved === "yes" ? "A copy was also saved in this project’s library." : ""}`.trim(),
+        `${note ?? "This export has no sound and no music."} ${saved === "yes" ? "A copy was also saved in this project’s library." : ""}`.trim(),
       )
     } catch {
       setExportError("Could not make the video. Check that the app is running, then try again.")
@@ -126,11 +141,9 @@ export function Storyboard({
       <div className="flex flex-col gap-1">
         <h2 className="text-lg font-semibold">Running timeline</h2>
         <p className="text-sm text-muted-foreground">
-          {scenes.length === 0
+          {realScenes.length === 0
             ? "No scenes yet."
-            : usesMoments
-              ? `${scenes.length} scenes · about ${total}. Each matched moment keeps its own length, up to 30 seconds.`
-              : `${scenes.length} scenes · about ${total}. Videos use 5 seconds. Photos use 3 seconds.`}
+            : `${realScenes.length} ${realScenes.length === 1 ? "scene" : "scenes"} · about ${formatClock(totalSeconds)}. Scene length comes from the brief. There is no sound and no music.`}
         </p>
       </div>
 
@@ -143,7 +156,11 @@ export function Storyboard({
             >
               <p className="text-xs font-medium">{rangeLabel(scenes, index)}</p>
               <p className="truncate text-sm">
-                {scene.media?.title ?? "No match"}
+                {scene.kind === "note"
+                  ? "Not a scene"
+                  : scene.filled
+                    ? scene.clips.map((clip) => clip.title).join(", ")
+                    : "Unmatched"}
               </p>
             </li>
           ))}
@@ -156,104 +173,116 @@ export function Storyboard({
             <Card>
               <CardHeader>
                 <p className="text-xs font-medium tracking-wide text-primary uppercase">
-                  Scene {index + 1} · {rangeLabel(scenes, index)}
+                  {scene.kind === "note"
+                    ? "Not a scene"
+                    : `Scene ${scenes.slice(0, index + 1).filter((item) => item.kind === "scene").length} · ${rangeLabel(scenes, index)}`}
+                  {scene.label ? ` · ${scene.label}` : ""}
                 </p>
                 <CardTitle className="break-words">
-                  {scene.media?.title ?? "No match"}
+                  {scene.kind === "note"
+                    ? scene.label || "Note"
+                    : scene.filled
+                      ? scene.clips.map((clip) => clip.title).join(" · ")
+                      : "Unmatched"}
                 </CardTitle>
               </CardHeader>
               <CardContent className="flex flex-col gap-3">
-                <div className="flex flex-col gap-3 sm:flex-row">
-                  {scene.media?.mediaType === "video" && scene.media.playbackUrl ? (
-                    <video
-                      controls
-                      src={scene.media.playbackUrl}
-                      className="aspect-video w-full rounded-lg bg-black object-contain sm:w-40"
-                      onLoadedMetadata={(event) => {
-                        const video = event.currentTarget
-                        if (scene.clipStart > 0 && video.currentTime < scene.clipStart) {
-                          video.currentTime = scene.clipStart
-                        }
-                      }}
-                    />
-                  ) : scene.media?.poster ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={scene.media.poster}
-                      alt=""
-                      width={640}
-                      height={360}
-                      className="aspect-video w-full rounded-lg object-cover sm:w-40"
-                    />
-                  ) : (
-                    <div className="flex aspect-video w-full items-center justify-center rounded-lg bg-muted text-sm text-muted-foreground sm:w-40">
-                      No thumbnail
-                    </div>
-                  )}
-                  <div className="flex min-w-0 flex-1 flex-col gap-2 text-sm">
+                <div className="flex min-w-0 flex-col gap-2 text-sm">
+                  {scene.kind === "scene" ? (
                     <p className="break-words">
                       <span className="text-muted-foreground">Direction: </span>
                       {scene.phrase}
                     </p>
-                    {scene.media ? (
-                      <p>
-                        <span className="text-muted-foreground">Chosen: </span>
-                        {scene.media.mediaType === "video" ? "Video" : "Photo"}
-                        {" · "}
-                        {scene.media.retreatName} {scene.media.year}
-                        {" · "}
-                        {scene.media.location}
-                      </p>
-                    ) : null}
-                    <p className="text-muted-foreground">{scene.reason}</p>
-                    {scene.media?.mediaType === "video" && scene.clipEnd != null ? (
-                      <p>
-                        <span className="text-muted-foreground">Moment: </span>
-                        {formatTimestamp(scene.clipStart)}–{formatTimestamp(scene.clipEnd)}
-                        {scene.confidence ? ` · Confidence: ${scene.confidence}` : ""}
-                      </p>
-                    ) : null}
-                    {scene.media?.mediaType === "video" &&
-                    scene.clipEnd != null &&
-                    scene.clipEnd - scene.clipStart > MAX_MOMENT_SECONDS ? (
+                  ) : (
+                    <p className="break-words">{scene.phrase}</p>
+                  )}
+                  <p className={scene.filled ? "text-muted-foreground" : "font-medium text-destructive"}>
+                    {scene.reason}
+                  </p>
+                  {scene.folderName ? (
+                    <p>
+                      <span className="text-muted-foreground">Folder: </span>
+                      {scene.folderName}
+                    </p>
+                  ) : null}
+                  {scene.durationSeconds != null ? (
+                    <p>
+                      <span className="text-muted-foreground">Length from the brief: </span>
+                      {scene.durationSeconds} seconds
+                    </p>
+                  ) : null}
+                  {scene.caption ? (
+                    <div className="rounded-lg bg-muted px-3 py-2">
+                      <p className="font-medium">On-screen text</p>
+                      {scene.caption.split("\n").map((line) => (
+                        <p key={line} className="break-words">
+                          {line}
+                        </p>
+                      ))}
                       <p className="text-muted-foreground">
-                        This moment is longer than 30 seconds. Export uses the first 30 seconds.
+                        This text is burned into the picture. There is no sound and no music.
                       </p>
-                    ) : null}
-                    {scene.media?.mediaType === "video" ? (
-                      <label className="flex flex-col gap-1">
-                        <span className="text-muted-foreground">
-                          Start at second in this clip
-                        </span>
-                        <Input
-                          type="number"
-                          min={0}
-                          step={0.5}
-                          value={scene.clipStart}
-                          onChange={(event) =>
-                            onStartChange(index, Number(event.target.value))
-                          }
-                          className="h-10 w-28"
+                    </div>
+                  ) : null}
+                  {scene.clips.map((clip, clipIndex) => (
+                    <div key={`${clip.mediaId}-${clip.start}`} className="flex flex-col gap-2 rounded-lg border p-3 sm:flex-row">
+                      {clip.media?.mediaType === "video" && clip.media.playbackUrl ? (
+                        <video
+                          controls
+                          src={clip.media.playbackUrl}
+                          className="aspect-video w-full rounded-lg bg-black object-contain sm:w-40"
+                          onLoadedMetadata={(event) => {
+                            const video = event.currentTarget
+                            if (clip.start > 0 && video.currentTime < clip.start) {
+                              video.currentTime = clip.start
+                            }
+                          }}
                         />
-                      </label>
-                    ) : null}
-                    {scene.announce ? (
-                      <div className="rounded-lg bg-muted px-3 py-2">
-                        <p className="font-medium">On-screen text</p>
-                        <p>{titleText.trim() || "No title text yet"}</p>
-                        <p>{campDate.trim() || "No camp date yet"}</p>
-                        <p>{campLocation.trim() || "No camp location yet"}</p>
+                      ) : clip.media?.poster ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={clip.media.poster}
+                          alt=""
+                          width={640}
+                          height={360}
+                          className="aspect-video w-full rounded-lg object-cover sm:w-40"
+                        />
+                      ) : (
+                        <div className="flex aspect-video w-full items-center justify-center rounded-lg bg-muted text-sm text-muted-foreground sm:w-40">
+                          No thumbnail
+                        </div>
+                      )}
+                      <div className="flex min-w-0 flex-1 flex-col gap-1">
+                        <p className="font-medium">{clip.title}</p>
+                        <p className="text-muted-foreground">
+                          {clip.photo ? "Photo" : "Video"}
+                          {clip.photo
+                            ? ` · ${clip.seconds} seconds`
+                            : ` · ${formatTimestamp(clip.start)}–${formatTimestamp(clip.end ?? clip.start + clip.seconds)}`}
+                          {clip.confidence ? ` · Confidence: ${clip.confidence}` : ""}
+                          {clip.source === "approved" ? " · Approved moment" : ""}
+                        </p>
+                        {!clip.photo ? (
+                          <label className="flex flex-col gap-1">
+                            <span className="text-muted-foreground">Start at second in this clip</span>
+                            <Input
+                              type="number"
+                              min={0}
+                              step={0.5}
+                              value={clip.start}
+                              onChange={(event) =>
+                                onStartChange(index, clipIndex, Number(event.target.value))
+                              }
+                              className="h-10 w-28"
+                            />
+                          </label>
+                        ) : null}
                       </div>
-                    ) : null}
-                  </div>
+                    </div>
+                  ))}
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => onMove(index, -1)}
-                    disabled={index === 0}
-                  >
+                  <Button type="button" variant="outline" onClick={() => onMove(index, -1)} disabled={index === 0}>
                     Move earlier
                   </Button>
                   <Button
@@ -264,11 +293,7 @@ export function Storyboard({
                   >
                     Move later
                   </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => onRemove(index)}
-                  >
+                  <Button type="button" variant="outline" onClick={() => onRemove(index)}>
                     Remove
                   </Button>
                 </div>
@@ -282,13 +307,19 @@ export function Storyboard({
         <Button type="button" onClick={exportVideo} disabled={!ready || exporting}>
           {exporting ? "Making the video…" : "Export"}
         </Button>
-        <p className="text-sm text-muted-foreground">
-          {ready
-            ? usesMoments
-              ? "Makes a vertical 1080×1920 MP4. Each video is cut to the moment’s start and end. Photos stay for 3 seconds. There is no sound. A plain title card is added at the start when you fill in the title."
-              : "Makes a vertical 1080×1920 MP4. Each video uses 5 seconds from the start second you set. Photos stay for 3 seconds. There is no sound. A plain title card is added at the start when you fill in the title."
-            : "Export needs a saved clip in every scene. Remove any scene that says nothing matched."}
-        </p>
+        {unmatched.length > 0 ? (
+          <p className="text-sm font-medium text-destructive" role="alert">
+            {unmatched.length === 1
+              ? "1 scene is unmatched. Export will not make a video, and it will not guess a clip."
+              : `${unmatched.length} scenes are unmatched. Export will not make a video, and it will not guess a clip.`}
+          </p>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            {ready
+              ? "Makes a vertical 1080×1920 MP4. Each scene keeps the length from the brief. There is no sound and no music. A plain title card is added at the start when you fill in the title."
+              : "Export needs a saved clip in every scene."}
+          </p>
+        )}
         {exporting ? (
           <p className="text-sm text-muted-foreground" role="status">
             This can take a few minutes. Leave this page open.
@@ -300,11 +331,7 @@ export function Storyboard({
           </p>
         ) : null}
         {downloadUrl ? (
-          <a
-            href={downloadUrl}
-            download="retreat-video.mp4"
-            className="text-sm font-medium text-primary underline"
-          >
+          <a href={downloadUrl} download="retreat-video.mp4" className="text-sm font-medium text-primary underline">
             Download retreat-video.mp4
           </a>
         ) : null}

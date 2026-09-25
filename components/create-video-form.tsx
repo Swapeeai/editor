@@ -10,6 +10,7 @@ import type { ProjectId } from "@/lib/projects"
 import { savedMediaAsClip, type SavedMedia } from "@/lib/saved-media"
 import { mediaForProject, type SampleMedia } from "@/lib/sample-media"
 import { Storyboard, type StoryScene } from "@/components/storyboard"
+import type { PlannedScene } from "@/lib/scene-plan"
 
 const examples: Record<
   ProjectId,
@@ -33,16 +34,6 @@ const examples: Record<
     location: "Flirty studio",
     direction: "a word from the first file title then a word from the next file title",
   },
-}
-
-function phraseAnnouncesCamp(phrase: string) {
-  const text = phrase.toLowerCase()
-  return (
-    text.includes("announce") ||
-    text.includes("camp date") ||
-    text.includes("date and place") ||
-    text.includes("background")
-  )
 }
 
 export function CreateVideoForm() {
@@ -133,15 +124,7 @@ function CreateVideoFields() {
       const body = (await response.json()) as {
         error?: string
         note?: string | null
-        scenes?: Array<{
-          phrase: string
-          mediaId: string | null
-          start: number | null
-          end: number | null
-          confidence: string | null
-          source: "twelvelabs" | "titles" | "none"
-          reason: string
-        }>
+        scenes?: PlannedScene[]
       }
       if (!response.ok) {
         throw new Error(body.error || "Could not build the storyboard.")
@@ -153,15 +136,12 @@ function CreateVideoFields() {
       setNote(body.note ?? null)
       setScenes(
         built.map((scene, index) => ({
-          id: `scene-${index}-${scene.mediaId ?? "none"}`,
-          phrase: scene.phrase,
-          media: library.clips.find((clip) => clip.id === scene.mediaId) ?? null,
-          reason: scene.reason,
-          announce: phraseAnnouncesCamp(scene.phrase),
-          clipStart: typeof scene.start === "number" ? scene.start : 0,
-          clipEnd: typeof scene.end === "number" ? scene.end : null,
-          confidence: scene.confidence,
-          source: scene.source,
+          ...scene,
+          id: `scene-${index}-${scene.label ?? scene.kind}`,
+          clips: scene.clips.map((clip) => ({
+            ...clip,
+            media: library.clips.find((item) => item.id === clip.mediaId) ?? null,
+          })),
         })),
       )
     } catch (caught) {
@@ -192,15 +172,23 @@ function CreateVideoFields() {
     setScenes((current) => current?.filter((_, itemIndex) => itemIndex !== index) ?? current)
   }
 
-  function setClipStart(index: number, start: number) {
+  function setClipStart(sceneIndex: number, clipIndex: number, start: number) {
     const next = Number.isFinite(start) ? Math.max(0, start) : 0
     setScenes((current) =>
       current?.map((scene, itemIndex) => {
-        if (itemIndex !== index) {
+        if (itemIndex !== sceneIndex) {
           return scene
         }
-        const end = scene.clipEnd != null && next < scene.clipEnd ? scene.clipEnd : null
-        return { ...scene, clipStart: next, clipEnd: end }
+        return {
+          ...scene,
+          clips: scene.clips.map((clip, index) => {
+            if (index !== clipIndex || clip.photo) {
+              return clip
+            }
+            const seconds = clip.seconds
+            return { ...clip, start: next, end: next + seconds }
+          }),
+        }
       }) ?? current,
     )
   }
@@ -260,16 +248,19 @@ function CreateVideoFields() {
             id="direction"
             value={direction}
             onChange={(event) => setDirection(event.target.value)}
-            placeholder={example.direction}
-            rows={5}
-            className="min-h-28"
+            placeholder={"0–3 sec — Paradise\nTropical beach and turquoise water\nText: PHUKET POLE RETREAT"}
+            rows={8}
+            className="min-h-40"
           />
           <p className="text-sm text-muted-foreground">
-            Use the word “then” between moments. Scenes come only from {project.name}.
+            Start a section with a time, like 0–3 sec — Paradise, then describe the shot.
+            Put Text: on its own line for words on screen. Put Folder: Boat trip on its own line to search only that folder.
+            You can still use “then”, or one scene per line.
+            Scenes come only from {project.name}.
             {media.aiSearch === false
-              ? " AI search not connected yet. Matching uses the title and file name."
+              ? " AI search not connected yet. A scene stays empty unless a title or keyword matches. Export will not guess a clip."
               : media.aiSearch
-                ? " Each phrase is searched inside this project’s footage."
+                ? " Each section is searched inside this project’s footage. A weak match is left empty."
                 : ""}
           </p>
         </div>
@@ -298,7 +289,7 @@ function CreateVideoFields() {
             </p>
           ) : (
             <p className="text-sm text-muted-foreground">
-              These scenes use moments found in {project.name}.
+              An unmatched scene stays empty. Export will not fill it with a guess.
             </p>
           )}
           <Storyboard

@@ -8,8 +8,8 @@ import { isProjectId, type ProjectId } from "@/lib/projects"
 import { NOT_CONNECTED_MESSAGE } from "@/lib/supabase"
 import { getSupabaseAdmin, MEDIA_BUCKET } from "@/lib/supabase-admin"
 import { clipDuration } from "@/lib/moment-timing"
-import { titleCardPng } from "@/lib/title-card"
-import { formatUploadLimit, MAX_UPLOAD_BYTES } from "@/lib/upload-limit"
+import { captionOverlayPng, titleCardPng } from "@/lib/title-card"
+import { formatUploadLimit, maxUploadBytes } from "@/lib/upload-limit"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 300
@@ -22,6 +22,8 @@ type SceneInput = {
   mediaId?: unknown
   startSeconds?: unknown
   endSeconds?: unknown
+  durationSeconds?: unknown
+  caption?: unknown
 }
 
 type MediaRow = {
@@ -78,6 +80,7 @@ async function writeClip(input: string, output: string, options: {
   photo: boolean
   start: number
   duration: number
+  captionPath?: string | null
 }) {
   const args = ["-y"]
   if (options.photo) {
@@ -99,12 +102,21 @@ async function writeClip(input: string, output: string, options: {
     String(options.duration),
     "-i",
     "anullsrc=channel_layout=stereo:sample_rate=44100",
-    "-vf",
-    frame,
-    "-map",
-    "0:v:0",
-    "-map",
-    "1:a:0",
+  )
+  if (options.captionPath) {
+    args.push("-i", options.captionPath)
+    args.push(
+      "-filter_complex",
+      `[0:v]${frame}[scaled];[scaled][2:v]overlay=0:0:format=auto,format=yuv420p[vout]`,
+      "-map",
+      "[vout]",
+      "-map",
+      "1:a:0",
+    )
+  } else {
+    args.push("-vf", frame, "-map", "0:v:0", "-map", "1:a:0")
+  }
+  args.push(
     "-c:v",
     "libx264",
     "-preset",
@@ -158,11 +170,19 @@ export async function POST(request: Request) {
     const mediaId = typeof item.mediaId === "string" ? item.mediaId : ""
     const start = typeof item.startSeconds === "number" ? item.startSeconds : 0
     const end = typeof item.endSeconds === "number" ? item.endSeconds : null
+    const duration =
+      typeof item.durationSeconds === "number" ? item.durationSeconds : null
+    const caption = typeof item.caption === "string" ? item.caption.trim().slice(0, 240) : ""
     return {
       mediaId,
-      start: Number.isFinite(start) ? Math.min(600, Math.max(0, start)) : 0,
+      start: Number.isFinite(start) ? Math.min(60 * 60 * 4, Math.max(0, start)) : 0,
       end:
-        end != null && Number.isFinite(end) ? Math.min(600, Math.max(0, end)) : null,
+        end != null && Number.isFinite(end) ? Math.min(60 * 60 * 4, Math.max(0, end)) : null,
+      duration:
+        duration != null && Number.isFinite(duration)
+          ? Math.min(180, Math.max(0.5, duration))
+          : null,
+      caption,
     }
   })
 
@@ -204,7 +224,7 @@ export async function POST(request: Request) {
 
   const dir = await mkdtemp(join(tmpdir(), "retreat-export-"))
   const notes: string[] = [
-    "This export has no sound. It is the picture only.",
+    "This export has no sound and no music. It is the picture only.",
   ]
 
   try {
@@ -245,7 +265,7 @@ export async function POST(request: Request) {
         )
       }
       const bytes = Buffer.from(await downloaded.arrayBuffer())
-      if (bytes.length > MAX_UPLOAD_BYTES) {
+      if (bytes.length > maxUploadBytes()) {
         return NextResponse.json(
           {
             error: `“${row.title}” is bigger than ${formatUploadLimit()}. Pick a shorter clip.`,
@@ -258,15 +278,27 @@ export async function POST(request: Request) {
       const source = join(dir, `source-${index}.${ext}`)
       await writeFile(source, bytes)
       const output = join(dir, `scene-${index}.mp4`)
-      const duration = clipDuration({
-        photo,
-        start: photo ? 0 : scene.start,
-        end: photo ? null : scene.end,
-      })
+      const duration =
+        scene.duration ??
+        clipDuration({
+          photo,
+          start: photo ? 0 : scene.start,
+          end: photo ? null : scene.end,
+        })
+      let captionPath: string | null = null
+      if (scene.caption) {
+        const overlay = captionOverlayPng(scene.caption.split(/\n+/))
+        if (overlay) {
+          captionPath = join(dir, `caption-${index}.png`)
+          await writeFile(captionPath, overlay)
+          notes.push("On-screen text from the brief was burned into the picture.")
+        }
+      }
       await writeClip(source, output, {
         photo,
         start: photo ? 0 : scene.start,
         duration,
+        captionPath,
       })
       parts.push(output)
     }
@@ -307,7 +339,7 @@ export async function POST(request: Request) {
 
     const video = await readFile(finished)
     let saved = false
-    if (video.length <= MAX_UPLOAD_BYTES) {
+    if (video.length <= maxUploadBytes()) {
       const exportId = crypto.randomUUID()
       const storagePath = `${projectId as ProjectId}/exports/${exportId}-retreat.mp4`
       const uploaded = await supabase.storage
@@ -338,7 +370,7 @@ export async function POST(request: Request) {
         "Content-Type": "video/mp4",
         "Content-Disposition": 'attachment; filename="retreat-video.mp4"',
         "X-Export-Saved": saved ? "yes" : "no",
-        "X-Export-Note": notes.join(" "),
+        "X-Export-Note": [...new Set(notes)].join(" "),
       },
     })
   } catch (error) {

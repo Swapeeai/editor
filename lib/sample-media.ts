@@ -22,6 +22,12 @@ export type SampleMedia = {
   createdAt?: string
   indexStatus?: "pending" | "indexing" | "ready" | "failed" | null
   indexError?: string | null
+  keywords?: string
+  folderNames?: string[]
+  reviewedAt?: string | null
+  sourceMediaId?: string | null
+  sourceTitle?: string | null
+  durationSeconds?: number | null
 }
 
 const phuket = {
@@ -275,6 +281,8 @@ export function filterMediaList(
       String(item.year),
       item.location,
       item.fileName ?? "",
+      item.keywords ?? "",
+      ...(item.folderNames ?? []),
       ...item.tags,
     ]
       .join(" ")

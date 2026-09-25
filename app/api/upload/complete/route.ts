@@ -1,5 +1,4 @@
-import { after, NextResponse } from "next/server"
-import { advanceMedia, markUploadedVideo } from "@/lib/ai-index"
+import { NextResponse } from "next/server"
 import { isProjectId } from "@/lib/projects"
 import {
   mediaTypeFromFile,
@@ -10,7 +9,7 @@ import {
 } from "@/lib/saved-media"
 import { NOT_CONNECTED_MESSAGE } from "@/lib/supabase"
 import { getSupabaseAdmin, MEDIA_BUCKET } from "@/lib/supabase-admin"
-import { FILE_TOO_BIG_MESSAGE, MAX_UPLOAD_BYTES } from "@/lib/upload-limit"
+import { FILE_TOO_BIG_MESSAGE, maxUploadBytes } from "@/lib/upload-limit"
 
 export const dynamic = "force-dynamic"
 
@@ -54,6 +53,11 @@ export async function POST(request: Request) {
   const mimeType = typeof record.mimeType === "string" ? record.mimeType : ""
   const storagePath = typeof record.storagePath === "string" ? record.storagePath : ""
   const requestedTitle = typeof record.title === "string" ? record.title : ""
+  const durationRaw = (body as { durationSeconds?: unknown }).durationSeconds
+  const durationSeconds =
+    typeof durationRaw === "number" && durationRaw > 0 && durationRaw < 60 * 60 * 12
+      ? durationRaw
+      : null
 
   if (!UUID.test(id) || !isProjectId(projectId)) {
     return NextResponse.json(
@@ -89,25 +93,48 @@ export async function POST(request: Request) {
     )
   }
 
-  if (typeof info.data.size === "number" && info.data.size > MAX_UPLOAD_BYTES) {
+  if (typeof info.data.size === "number" && info.data.size > maxUploadBytes()) {
     await supabase.storage.from(MEDIA_BUCKET).remove([storagePath])
     return NextResponse.json({ error: FILE_TOO_BIG_MESSAGE }, { status: 413 })
   }
 
-  const inserted = await supabase
+  const row = {
+    id,
+    project_id: projectId,
+    title: libraryTitle(requestedTitle, fileName),
+    media_type: mediaType,
+    storage_path: storagePath,
+    mime_type: mimeType || info.data.contentType || null,
+    ...(durationSeconds != null ? { duration_seconds: durationSeconds } : {}),
+  }
+  let inserted = await supabase
     .from("media_items")
-    .insert({
-      id,
-      project_id: projectId,
-      title: libraryTitle(requestedTitle, fileName),
-      media_type: mediaType,
-      storage_path: storagePath,
-      mime_type: mimeType || info.data.contentType || null,
-    })
+    .insert(row)
     .select(
       "id, project_id, title, media_type, storage_path, mime_type, created_at",
     )
     .single()
+  if (
+    inserted.error &&
+    durationSeconds != null &&
+    /duration_seconds|schema cache|could not find/i.test(inserted.error.message)
+  ) {
+    const withoutDuration = {
+      id: row.id,
+      project_id: row.project_id,
+      title: row.title,
+      media_type: row.media_type,
+      storage_path: row.storage_path,
+      mime_type: row.mime_type,
+    }
+    inserted = await supabase
+      .from("media_items")
+      .insert(withoutDuration)
+      .select(
+        "id, project_id, title, media_type, storage_path, mime_type, created_at",
+      )
+      .single()
+  }
 
   if (inserted.error || !inserted.data) {
     await supabase.storage.from(MEDIA_BUCKET).remove([storagePath])
@@ -122,22 +149,12 @@ export async function POST(request: Request) {
     )
   }
 
-  const queued = await markUploadedVideo(id, storagePath, mediaType)
-  if (queued) {
-    after(() => {
-      void advanceMedia(id)
-    })
-  }
-
   const signed = await supabase.storage
     .from(MEDIA_BUCKET)
     .createSignedUrl(storagePath, 60 * 60)
 
   const item = rowToSavedMedia(inserted.data as MediaRow, signed.data?.signedUrl ?? null)
-  if (queued) {
-    item.indexStatus = "pending"
-    item.indexError = null
-  }
+  item.durationSeconds = durationSeconds
 
   return NextResponse.json({ item })
 }

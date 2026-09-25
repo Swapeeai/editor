@@ -63,38 +63,38 @@ function meaningfulWords(text: string) {
     .filter((word) => word.length > 2 && !STOP_WORDS.has(word))
 }
 
+// One shared word is not enough. A keyword she typed, or two title words, is.
+export const MATCH_THRESHOLD = 4
+
+function includesWord(haystack: string, word: string) {
+  const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  const plural = word.length > 3 ? `(?:${escaped}|${escaped}s|${escaped}es)` : escaped
+  return new RegExp(`\\b${plural}\\b`, "i").test(haystack)
+}
+
 function scoreItem(phrase: string, item: SampleMedia) {
   const phraseText = phrase.toLowerCase()
   let points = 0
   const reasons: string[] = []
 
   for (const tag of item.tags) {
-    // "instructors" still matches the tag "instructor".
-    if (phraseText.includes(tag.toLowerCase())) {
-      points += 5
-      reasons.push(`the tag “${tag}”`)
+    const keyword = tag.trim().toLowerCase()
+    if (keyword.length < 3) {
+      continue
     }
-  }
-
-  const place = item.location.split(",")[0]?.trim().toLowerCase() ?? ""
-  if (place.length > 2 && phraseText.includes(place)) {
-    points += 4
-    reasons.push(`the place “${item.location}”`)
-  }
-
-  if (
-    phraseText.includes("background") &&
-    item.tags.some((tag) => tag === "beach" || tag === "sunset" || tag === "studio")
-  ) {
-    points += 3
-    reasons.push("a beach, sunset, or studio tag for the background")
+    const hit = keyword.includes(" ")
+      ? phraseText.includes(keyword)
+      : includesWord(phraseText, keyword)
+    if (hit) {
+      points += 6
+      reasons.push(`the keyword “${tag.trim()}”`)
+    }
   }
 
   const phraseWords = new Set(meaningfulWords(phrase))
   const titleHits = meaningfulWords(item.title).filter((word) => phraseWords.has(word))
   if (titleHits.length > 0) {
     points += titleHits.length * 2
-    // Tags and places are easier to read than a list of title words.
     if (reasons.length === 0) {
       reasons.push("words in the title")
     }
@@ -112,6 +112,16 @@ function scoreItem(phrase: string, item: SampleMedia) {
   return { points, reasons }
 }
 
+export function rankPhrase(phrase: string, library: SampleMedia[]) {
+  return library
+    .map((item) => {
+      const result = scoreItem(phrase, item)
+      return { item, points: result.points, reasons: result.reasons }
+    })
+    .filter((row) => row.points >= MATCH_THRESHOLD)
+    .sort((a, b) => b.points - a.points)
+}
+
 export function findMoments(
   direction: string,
   library: SampleMedia[],
@@ -119,27 +129,15 @@ export function findMoments(
   const used = new Set<string>()
 
   return splitDirection(direction).map((phrase) => {
-    let best: { item: SampleMedia; points: number; reasons: string[] } | null =
-      null
-
-    for (const item of library) {
-      if (used.has(item.id)) {
-        continue
-      }
-      const result = scoreItem(phrase, item)
-      if (result.points === 0) {
-        continue
-      }
-      if (!best || result.points > best.points) {
-        best = { item, points: result.points, reasons: result.reasons }
-      }
-    }
+    const ranked = rankPhrase(phrase, library).filter((row) => !used.has(row.item.id))
+    const best = ranked[0] ?? null
 
     if (!best) {
       return {
         phrase,
         media: null,
-        reason: "No file title matched these words. Use words from the file name.",
+        reason:
+          "No title or keyword matched these words closely enough. Nothing was guessed.",
       }
     }
 

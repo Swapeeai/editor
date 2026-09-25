@@ -4,12 +4,20 @@ import { useCallback, useEffect, useState } from "react"
 import type { ProjectId } from "@/lib/projects"
 import type { SavedMedia } from "@/lib/saved-media"
 
+export type LibraryFolder = {
+  id: string
+  name: string
+  count: number
+}
+
 export type ProjectMediaState = {
   projectId: ProjectId
   status: "loading" | "ready" | "error"
   configured: boolean
   aiSearch: boolean | null
   indexSchema: boolean | null
+  foldersSchema: boolean | null
+  folders: LibraryFolder[]
   items: SavedMedia[]
   error: string | null
 }
@@ -22,6 +30,8 @@ export function useProjectMedia(projectId: ProjectId): ProjectMediaState & { rel
     configured: false,
     aiSearch: null,
     indexSchema: null,
+    foldersSchema: null,
+    folders: [],
     items: [],
     error: null,
   })
@@ -35,6 +45,8 @@ export function useProjectMedia(projectId: ProjectId): ProjectMediaState & { rel
           configured?: boolean
           aiSearch?: boolean
           indexSchema?: boolean
+          foldersSchema?: boolean
+          folders?: LibraryFolder[]
           items?: SavedMedia[]
           error?: string
         }
@@ -47,6 +59,8 @@ export function useProjectMedia(projectId: ProjectId): ProjectMediaState & { rel
           configured: Boolean(body.configured),
           aiSearch: Boolean(body.aiSearch),
           indexSchema: Boolean(body.indexSchema),
+          foldersSchema: Boolean(body.foldersSchema),
+          folders: Array.isArray(body.folders) ? body.folders : [],
           items: Array.isArray(body.items) ? body.items : [],
           error: null,
         })
@@ -61,6 +75,8 @@ export function useProjectMedia(projectId: ProjectId): ProjectMediaState & { rel
           configured: false,
           aiSearch: null,
           indexSchema: null,
+          foldersSchema: null,
+          folders: [],
           items: [],
           error:
             error instanceof Error ? error.message : "Could not load saved files.",
@@ -79,6 +95,8 @@ export function useProjectMedia(projectId: ProjectId): ProjectMediaState & { rel
       configured: false,
       aiSearch: null,
       indexSchema: null,
+      foldersSchema: null,
+      folders: [],
       items: [],
       error: null,
       reload,

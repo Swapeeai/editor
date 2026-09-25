@@ -13,14 +13,15 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: "The request was empty." }, { status: 400 })
   }
-  const rawProject = (body as { projectId?: unknown }).projectId
-  const projectId = typeof rawProject === "string" ? rawProject : ""
+  const record = body as { projectId?: unknown; mode?: unknown }
+  const projectId = typeof record.projectId === "string" ? record.projectId : ""
   if (!isProjectId(projectId)) {
     return NextResponse.json({ error: "Pick a project first." }, { status: 400 })
   }
+  const mode = record.mode === "sync" ? "sync" : "poll"
 
   try {
-    const result = await syncProject(projectId)
+    const result = await syncProject(projectId, mode)
     if (!result.ok) {
       return NextResponse.json({ message: result.message, updated: 0 })
     }

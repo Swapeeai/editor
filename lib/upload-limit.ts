@@ -29,7 +29,11 @@ export const RESUMABLE_AFTER_BYTES = 6 * 1024 * 1024
 
 export const TUS_CHUNK_BYTES = 6 * 1024 * 1024
 
-export function formatUploadLimit(mb = MAX_UPLOAD_MB) {
+export function maxUploadBytes() {
+  return Math.floor(readMaxUploadMb() * 1024 * 1024)
+}
+
+export function formatUploadLimit(mb = readMaxUploadMb()) {
   if (mb >= 1000 && mb % 1000 === 0) {
     const gb = mb / 1000
     return gb === 1 ? "1 GB" : `${gb} GB`

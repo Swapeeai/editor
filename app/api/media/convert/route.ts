@@ -6,7 +6,7 @@ import { NOT_CONNECTED_MESSAGE } from "@/lib/supabase"
 import { getSupabaseAdmin, MEDIA_BUCKET } from "@/lib/supabase-admin"
 import {
   FILE_TOO_BIG_MESSAGE,
-  MAX_UPLOAD_BYTES,
+  maxUploadBytes,
   resumableUploadEndpoint,
 } from "@/lib/upload-limit"
 
@@ -97,7 +97,7 @@ async function startConvert(
   }
 
   const bytes = typeof size === "number" ? size : Number.NaN
-  if (Number.isFinite(bytes) && bytes > MAX_UPLOAD_BYTES) {
+  if (Number.isFinite(bytes) && bytes > maxUploadBytes()) {
     return NextResponse.json({ error: FILE_TOO_BIG_MESSAGE }, { status: 413 })
   }
 
@@ -173,7 +173,7 @@ async function finishConvert(
       { status: 400 },
     )
   }
-  if (bytes > MAX_UPLOAD_BYTES) {
+  if (bytes > maxUploadBytes()) {
     await supabase.storage.from(MEDIA_BUCKET).remove([storagePath])
     return NextResponse.json({ error: FILE_TOO_BIG_MESSAGE }, { status: 413 })
   }

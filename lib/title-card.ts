@@ -98,6 +98,89 @@ function chunk(type: string, data: Buffer) {
   return Buffer.concat([length, body, crc])
 }
 
+function pngRgba(pixels: Uint8Array) {
+  const raw = Buffer.alloc((WIDTH * 4 + 1) * HEIGHT)
+  for (let y = 0; y < HEIGHT; y += 1) {
+    const row = y * (WIDTH * 4 + 1)
+    raw[row] = 0
+    pixels.subarray(y * WIDTH * 4, (y + 1) * WIDTH * 4).forEach((byte, index) => {
+      raw[row + 1 + index] = byte
+    })
+  }
+  const ihdr = Buffer.alloc(13)
+  ihdr.writeUInt32BE(WIDTH, 0)
+  ihdr.writeUInt32BE(HEIGHT, 4)
+  ihdr[8] = 8
+  ihdr[9] = 6
+  return Buffer.concat([
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+    chunk("IHDR", ihdr),
+    chunk("IDAT", deflateSync(raw)),
+    chunk("IEND", Buffer.alloc(0)),
+  ])
+}
+
+function drawGlyphRgba(
+  pixels: Uint8Array,
+  glyph: number[],
+  left: number,
+  top: number,
+) {
+  for (let row = 0; row < GLYPH_H; row += 1) {
+    for (let col = 0; col < GLYPH_W; col += 1) {
+      if (((glyph[row] >> (4 - col)) & 1) === 0) {
+        continue
+      }
+      for (let sy = 0; sy < SCALE; sy += 1) {
+        for (let sx = 0; sx < SCALE; sx += 1) {
+          const x = left + col * SCALE + sx
+          const y = top + row * SCALE + sy
+          if (x < 0 || y < 0 || x >= WIDTH || y >= HEIGHT) {
+            continue
+          }
+          const offset = (y * WIDTH + x) * 4
+          pixels[offset] = 255
+          pixels[offset + 1] = 255
+          pixels[offset + 2] = 255
+          pixels[offset + 3] = 255
+        }
+      }
+    }
+  }
+}
+
+export function captionOverlayPng(lines: string[]) {
+  const wrapped = lines
+    .flatMap((line) => wrapLine(cleanLine(line)))
+    .filter(Boolean)
+    .slice(0, 4)
+  if (wrapped.length === 0) {
+    return null
+  }
+  const pixels = new Uint8Array(WIDTH * HEIGHT * 4)
+  const lineHeight = (GLYPH_H + 3) * SCALE
+  const blockHeight = wrapped.length * lineHeight
+  const top = HEIGHT - blockHeight - 160
+  const barTop = top - 36
+  const barBottom = top + blockHeight + 36
+  for (let y = Math.max(0, barTop); y < Math.min(HEIGHT, barBottom); y += 1) {
+    for (let x = 0; x < WIDTH; x += 1) {
+      const offset = (y * WIDTH + x) * 4
+      pixels[offset + 3] = 150
+    }
+  }
+  wrapped.forEach((line, lineIndex) => {
+    const width = line.length * (GLYPH_W + GAP) * SCALE
+    const left = Math.max(40, Math.floor((WIDTH - width) / 2))
+    const y = top + lineIndex * lineHeight
+    for (let index = 0; index < line.length; index += 1) {
+      const glyph = GLYPHS[line[index]] ?? GLYPHS[" "]
+      drawGlyphRgba(pixels, glyph, left + index * (GLYPH_W + GAP) * SCALE, y)
+    }
+  })
+  return pngRgba(pixels)
+}
+
 function png(pixels: Uint8Array) {
   const raw = Buffer.alloc((WIDTH * 3 + 1) * HEIGHT)
   for (let y = 0; y < HEIGHT; y += 1) {

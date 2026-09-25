@@ -29,6 +29,7 @@ export async function saveFileToLibrary(
     }
   }
   onProgress?.(null)
+  const durationSeconds = await videoDurationSeconds(ready)
   const preparedResponse = await fetch("/api/upload", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -77,6 +78,7 @@ export async function saveFileToLibrary(
       mimeType: ready.type,
       storagePath: prepared.storagePath,
       ...(titleOverride ? { title: titleOverride } : {}),
+      ...(durationSeconds != null ? { durationSeconds } : {}),
     }),
   })
   const finished = (await finishedResponse.json()) as {
@@ -94,6 +96,29 @@ export async function saveFileToLibrary(
     fileName: ready.name,
     size: ready.size,
   }
+}
+
+function videoDurationSeconds(file: File) {
+  const video =
+    file.type.startsWith("video/") || /\.(mp4|mov|webm|m4v)$/i.test(file.name)
+  if (!video) {
+    return Promise.resolve(null)
+  }
+  const url = URL.createObjectURL(file)
+  return new Promise<number | null>((resolve) => {
+    const element = document.createElement("video")
+    element.preload = "metadata"
+    element.onloadedmetadata = () => {
+      const seconds = element.duration
+      URL.revokeObjectURL(url)
+      resolve(Number.isFinite(seconds) && seconds > 0 ? seconds : null)
+    }
+    element.onerror = () => {
+      URL.revokeObjectURL(url)
+      resolve(null)
+    }
+    element.src = url
+  })
 }
 
 function putFile(

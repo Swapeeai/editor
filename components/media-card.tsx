@@ -1,8 +1,11 @@
 "use client"
 
 import { useState } from "react"
+import { CutClip } from "@/components/cut-clip"
+import { ReviewMoments } from "@/components/review-moments"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 import { isProjectId, projects, type ProjectId } from "@/lib/projects"
 import { formatSavedDate } from "@/lib/saved-media"
 import type { SampleMedia } from "@/lib/sample-media"
@@ -10,9 +13,15 @@ import type { SampleMedia } from "@/lib/sample-media"
 export function MediaCard({
   item,
   onChanged,
+  selected = false,
+  onToggle,
+  parts = [],
 }: {
   item: SampleMedia
   onChanged?: () => void
+  selected?: boolean
+  onToggle?: () => void
+  parts?: SampleMedia[]
 }) {
   const kind = item.mediaType === "video" ? "Video" : "Photo"
   const playbackUrl = item.playbackUrl ?? null
@@ -20,7 +29,36 @@ export function MediaCard({
   const [target, setTarget] = useState<ProjectId>(others[0]?.id ?? "phuket")
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [editingTitle, setEditingTitle] = useState(false)
+  const [title, setTitle] = useState(item.title)
+  const [keywords, setKeywords] = useState(item.keywords ?? "")
   const uploaded = item.createdAt ? formatSavedDate(item.createdAt) : ""
+  const keywordList = keywords
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean)
+
+  async function saveDetails(next: { title?: string; keywords?: string }) {
+    setBusy(true)
+    setError(null)
+    try {
+      const response = await fetch("/api/media/details", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: item.id, ...next }),
+      })
+      const body = (await response.json()) as { error?: string }
+      if (!response.ok) {
+        throw new Error(body.error || "Could not save that change.")
+      }
+      setEditingTitle(false)
+      onChanged?.()
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not save that change.")
+    } finally {
+      setBusy(false)
+    }
+  }
 
   async function moveFile() {
     if (busy || target === item.projectId) {
@@ -79,6 +117,7 @@ export function MediaCard({
       {item.mediaType === "video" && playbackUrl ? (
         <video
           controls
+          preload="none"
           src={playbackUrl}
           className="aspect-video w-full bg-black object-contain"
         />
@@ -97,6 +136,12 @@ export function MediaCard({
         </div>
       )}
       <CardHeader>
+        {onToggle ? (
+          <label className="flex items-center gap-2 text-sm font-medium">
+            <input type="checkbox" checked={selected} onChange={onToggle} />
+            Select
+          </label>
+        ) : null}
         <div className="flex flex-wrap items-center gap-2">
           <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium">
             {item.retreatName}
@@ -158,7 +203,94 @@ export function MediaCard({
             </Button>
           </div>
         ) : null}
-        <CardTitle>{item.title}</CardTitle>
+        {editingTitle ? (
+          <form
+            className="flex flex-col gap-2"
+            onSubmit={(event) => {
+              event.preventDefault()
+              void saveDetails({ title })
+            }}
+          >
+            <Input value={title} onChange={(event) => setTitle(event.target.value)} className="h-10" />
+            <div className="flex gap-2">
+              <Button type="submit" disabled={busy}>
+                Save name
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setTitle(item.title)
+                  setEditingTitle(false)
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          </form>
+        ) : (
+          <button type="button" className="text-left" onClick={() => setEditingTitle(true)}>
+            <CardTitle>{item.title}</CardTitle>
+            <span className="text-xs text-muted-foreground">Click to rename</span>
+          </button>
+        )}
+        {keywordList.length > 0 ? (
+          <p className="text-sm text-muted-foreground">Keywords: {keywordList.join(" · ")}</p>
+        ) : null}
+        {(item.folderNames ?? []).length > 0 ? (
+          <p className="text-sm text-muted-foreground">
+            Folders: {(item.folderNames ?? []).join(" · ")}
+          </p>
+        ) : null}
+        {item.sourceTitle ? (
+          <p className="text-sm text-muted-foreground">Cut from {item.sourceTitle}</p>
+        ) : null}
+        <form
+          className="flex flex-col gap-2"
+          onSubmit={(event) => {
+            event.preventDefault()
+            void saveDetails({ keywords })
+          }}
+        >
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="text-muted-foreground">Keywords, separated by commas</span>
+            <Input
+              value={keywords}
+              onChange={(event) => setKeywords(event.target.value)}
+              placeholder="beach, pole trick, sunset"
+              className="h-10"
+            />
+          </label>
+          <Button type="submit" variant="outline" disabled={busy}>
+            Save keywords
+          </Button>
+        </form>
+        {item.mediaType === "video" ? (
+          <CutClip
+            item={item}
+            parts={parts}
+            onChanged={() => onChanged?.()}
+            onDeleteSource={async () => {
+              const response = await fetch("/api/media/delete", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id: item.id }),
+              })
+              const body = (await response.json()) as { error?: string }
+              if (!response.ok) {
+                throw new Error(body.error || "Could not delete that file.")
+              }
+              onChanged?.()
+            }}
+          />
+        ) : null}
+        {item.mediaType === "video" ? (
+          <ReviewMoments
+            mediaId={item.id}
+            projectId={item.projectId}
+            playbackUrl={playbackUrl}
+          />
+        ) : null}
         <div className="flex flex-col gap-2 pt-1">
           <label className="flex flex-col gap-1 text-sm">
             <span className="text-muted-foreground">Move to project</span>

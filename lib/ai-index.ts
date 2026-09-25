@@ -16,7 +16,9 @@ import {
 } from "@/lib/twelvelabs"
 
 const advancing = new Map<string, Promise<AdvanceResult>>()
-const MAX_CONCURRENT_INDEX = 4
+const MAX_CONCURRENT_INDEX = 5
+export const FREE_INDEX_MINUTES = 600
+const FREE_INDEX_SECONDS = FREE_INDEX_MINUTES * 60
 let indexActive = 0
 const indexWaiters: Array<() => void> = []
 
@@ -149,6 +151,14 @@ async function advanceBody(id: string): Promise<AdvanceResult> {
     let videoId = item.twelveLabsVideoId
 
     if (!assetId) {
+      const seconds = item.durationSeconds
+      if (seconds == null || !(seconds > 0)) {
+        await saveIndexFields(id, {
+          index_status: "failed",
+          index_error: "This video has no length yet, so it was not sent.",
+        })
+        return "failed"
+      }
       const signed = await supabase.storage
         .from(MEDIA_BUCKET)
         .createSignedUrl(item.storagePath, SIGNED_URL_SECONDS)
@@ -156,6 +166,7 @@ async function advanceBody(id: string): Promise<AdvanceResult> {
         throw new TwelveLabsError("Could not open this video for indexing.", 502)
       }
       const created = await createAssetFromUrl(signed.data.signedUrl)
+      await recordIndexUse(item.projectId, id, seconds)
       assetId = created.id
       await saveIndexFields(id, {
         twelvelabs_asset_id: assetId,
@@ -245,33 +256,51 @@ export function advanceMedia(id: string) {
   return run
 }
 
-async function idsFor(projectId: ProjectId, mode: "sync" | "prepare") {
+async function recordIndexUse(projectId: ProjectId, mediaId: string, seconds: number) {
+  const supabase = getSupabaseAdmin()
+  if (!supabase) {
+    return
+  }
+  const inserted = await supabase.from("index_usage").insert({
+    media_item_id: mediaId,
+    project_id: projectId,
+    duration_seconds: seconds,
+  })
+  if (inserted.error && !/index_usage|schema cache|could not find/i.test(inserted.error.message)) {
+    throw new Error("Could not record the indexing minutes.")
+  }
+}
+
+async function idsFor(projectId: ProjectId, mode: "sync" | "poll") {
   const { listProjectItems } = await import("@/lib/media-db")
   const listed = await listProjectItems(projectId)
   if (!listed.indexSchema) {
     throw new IndexSchemaError()
   }
-  const ids = listed.items
-    .filter((item) => shouldIndex(item.storagePath, item.mediaType))
-    .filter((item) => {
-      if (item.indexStatus === "ready") {
-        return false
-      }
-      if (mode === "sync") {
-        return item.indexStatus === "pending" || item.indexStatus === "indexing"
-      }
-      return true
-    })
-    .slice(0, BATCH)
-    .map((item) => item.id)
-  return ids
+  const videos = listed.items.filter((item) =>
+    shouldIndex(item.storagePath, item.mediaType),
+  )
+  const indexing = videos.filter((item) => item.indexStatus === "indexing")
+  if (mode === "poll") {
+    return indexing.slice(0, BATCH).map((item) => item.id)
+  }
+  const chosen = indexing.slice(0, BATCH)
+  for (const item of videos) {
+    if (chosen.length >= BATCH) {
+      break
+    }
+    if (item.indexStatus === "pending" && !chosen.some((entry) => entry.id === item.id)) {
+      chosen.push(item)
+    }
+  }
+  return chosen.map((item) => item.id)
 }
 
-export async function syncProject(projectId: ProjectId) {
+export async function syncProject(projectId: ProjectId, mode: "sync" | "poll" = "sync") {
   if (!isTwelveLabsConfigured()) {
     return { ok: false as const, message: "AI search not connected yet" }
   }
-  const ids = await idsFor(projectId, "sync")
+  const ids = await idsFor(projectId, mode)
   const results = []
   for (const id of ids) {
     results.push(await advanceMedia(id))
@@ -279,7 +308,65 @@ export async function syncProject(projectId: ProjectId) {
   return { ok: true as const, updated: results.length, results }
 }
 
-export async function prepareProject(projectId: ProjectId) {
+export async function estimateIndexUse() {
+  const supabase = getSupabaseAdmin()
+  if (!supabase) {
+    return {
+      ok: false as const,
+      usedSeconds: 0,
+      limitSeconds: FREE_INDEX_SECONDS,
+      usageReady: false,
+      message: "Supabase is not connected.",
+    }
+  }
+
+  const usage = await supabase.from("index_usage").select("duration_seconds")
+  let logged = 0
+  let usageReady = true
+  if (usage.error) {
+    usageReady = false
+  } else {
+    for (const row of usage.data ?? []) {
+      const seconds = Number((row as { duration_seconds?: unknown }).duration_seconds)
+      if (Number.isFinite(seconds) && seconds > 0) {
+        logged += seconds
+      }
+    }
+  }
+
+  const videos = await supabase
+    .from("media_items")
+    .select("duration_seconds, index_status, media_type")
+    .in("index_status", ["ready", "indexing"])
+  let measured = 0
+  if (!videos.error) {
+    for (const row of videos.data ?? []) {
+      const record = row as {
+        duration_seconds?: unknown
+        media_type?: unknown
+      }
+      if (record.media_type !== "video") {
+        continue
+      }
+      const seconds = Number(record.duration_seconds)
+      if (Number.isFinite(seconds) && seconds > 0) {
+        measured += seconds
+      }
+    }
+  }
+
+  return {
+    ok: true as const,
+    usedSeconds: Math.max(logged, measured),
+    limitSeconds: FREE_INDEX_SECONDS,
+    usageReady,
+    message: usageReady
+      ? null
+      : "Run supabase/schema-update.sql so the minute total is kept. This figure is an estimate from videos already sent.",
+  }
+}
+
+export async function prepareSelected(projectId: ProjectId, mediaIds: string[]) {
   if (!isTwelveLabsConfigured()) {
     return { ok: false as const, message: "AI search not connected yet" }
   }
@@ -288,30 +375,83 @@ export async function prepareProject(projectId: ProjectId) {
   if (!listed.indexSchema) {
     throw new IndexSchemaError()
   }
+  const wanted = new Set(mediaIds)
   const targets = listed.items.filter(
     (item) =>
-      shouldIndex(item.storagePath, item.mediaType) && item.indexStatus !== "ready",
+      wanted.has(item.id) &&
+      shouldIndex(item.storagePath, item.mediaType) &&
+      item.indexStatus !== "ready",
   )
+  if (targets.length === 0) {
+    return {
+      ok: false as const,
+      message: "Select a video that is not already ready for AI search.",
+    }
+  }
+  const missingLength = targets.filter((item) => !(item.durationSeconds && item.durationSeconds > 0))
+  if (missingLength.length > 0) {
+    return {
+      ok: false as const,
+      message: `${missingLength.length} selected ${missingLength.length === 1 ? "video has" : "videos have"} no length yet, so nothing was sent.`,
+    }
+  }
+  const selectedSeconds = targets.reduce((sum, item) => sum + (item.durationSeconds ?? 0), 0)
+  const quota = await estimateIndexUse()
+  if (quota.ok && quota.usedSeconds + selectedSeconds > quota.limitSeconds + 1) {
+    const selectedMinutes = Math.ceil(selectedSeconds / 60)
+    const usedMinutes = Math.ceil(quota.usedSeconds / 60)
+    return {
+      ok: false as const,
+      message: `That selection is about ${selectedMinutes} minutes, and about ${usedMinutes} of ${FREE_INDEX_MINUTES} are already used. Nothing was sent.`,
+    }
+  }
   for (const item of targets) {
     if (item.indexStatus !== "pending" && item.indexStatus !== "indexing") {
       await saveIndexFields(item.id, { index_status: "pending", index_error: null })
     }
   }
-  const ids = targets.slice(0, BATCH).map((item) => item.id)
+  const ids = await idsFor(projectId, "sync")
   for (const id of ids) {
     await advanceMedia(id)
   }
   const waiting = Math.max(0, targets.length - ids.length)
   return {
     ok: true as const,
-    started: ids.length,
+    started: Math.min(ids.length, targets.length),
     waiting,
+    selected: targets.length,
     message:
-      ids.length === 0
-        ? "Every video in this project is already ready for AI search."
-        : waiting > 0
-          ? `Started ${ids.length} videos. ${waiting} more will start as those finish.`
-          : `Started indexing ${ids.length} ${ids.length === 1 ? "video" : "videos"}.`,
+      waiting > 0
+        ? `Started ${Math.min(BATCH, targets.length)} videos. ${waiting} more stay waiting until you continue or those finish.`
+        : `Started indexing ${targets.length} ${targets.length === 1 ? "video" : "videos"}.`,
+  }
+}
+
+export async function stopPending(projectId: ProjectId) {
+  const supabase = getSupabaseAdmin()
+  if (!supabase) {
+    return { ok: false as const, message: "Supabase is not connected." }
+  }
+  const updated = await supabase
+    .from("media_items")
+    .update({ index_status: null, index_error: null })
+    .eq("project_id", projectId)
+    .eq("index_status", "pending")
+    .select("id")
+  if (updated.error) {
+    if (isMissingIndexSchema(updated.error.message)) {
+      throw new IndexSchemaError()
+    }
+    throw new Error("Could not stop the waiting videos.")
+  }
+  const stopped = updated.data?.length ?? 0
+  return {
+    ok: true as const,
+    stopped,
+    message:
+      stopped === 0
+        ? "No videos were waiting. Any video already sent will finish."
+        : `Stopped ${stopped} waiting ${stopped === 1 ? "video" : "videos"}. Any video already sent will finish.`,
   }
 }
 

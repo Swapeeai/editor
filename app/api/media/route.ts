@@ -23,6 +23,10 @@ export async function GET(request: Request) {
       configured: false,
       aiSearch: isTwelveLabsConfigured(),
       indexSchema: false,
+      keywordsSchema: false,
+      reviewedSchema: false,
+      foldersSchema: false,
+      folders: [],
       items: [],
     })
   }
@@ -33,6 +37,10 @@ export async function GET(request: Request) {
       configured: true,
       aiSearch: isTwelveLabsConfigured(),
       indexSchema: listed.indexSchema,
+      keywordsSchema: listed.keywordsSchema,
+      reviewedSchema: listed.reviewedSchema,
+      foldersSchema: listed.foldersSchema,
+      folders: listed.folders,
       items: listed.items.map(toPublicItem),
     })
   } catch (error) {

@@ -3,4 +3,4 @@
 // The server check lives in lib/supabase-admin.ts.
 
 export const NOT_CONNECTED_MESSAGE =
-  "Supabase is not connected. Add NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, and SUPABASE_SERVICE_ROLE_KEY in .env.local, then restart the app."
+  "Supabase is not connected. Open Settings on this computer and paste the URL, anon key, and service role key."

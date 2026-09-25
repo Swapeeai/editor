@@ -261,6 +261,116 @@ export async function searchIndex(indexId: string, queryText: string) {
   }
 }
 
+export type ProposedMoment = {
+  start: number
+  end: number
+  label: string
+  why: string
+}
+
+export async function createHighlightTask(assetId: string) {
+  const body = await request("/analyze/tasks", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      video: { type: "asset_id", asset_id: assetId },
+      model_name: "pegasus1.5",
+      analysis_mode: "time_based_metadata",
+      min_segment_duration: 2,
+      max_segment_duration: 12,
+      response_format: {
+        type: "segment_definitions",
+        segment_time_format: "seconds",
+        segment_definitions: [
+          {
+            id: "highlights",
+            description:
+              "The strongest moments a retreat promo would use: scenery, a pole trick, teaching, celebration, or a clear emotional beat. Skip blur, empty frames, and repeated angles.",
+            fields: [
+              {
+                name: "label",
+                type: "string",
+                description: "A short name for this moment, six words or fewer",
+              },
+              {
+                name: "why",
+                type: "string",
+                description: "One sentence on why this moment is strong",
+              },
+            ],
+          },
+        ],
+      },
+    }),
+  })
+  const taskId = idOf(body)
+  if (!taskId && body && typeof body === "object") {
+    const record = body as Record<string, unknown>
+    if (typeof record.task_id === "string") {
+      return record.task_id
+    }
+  }
+  if (!taskId) {
+    throw new TwelveLabsError("Twelve Labs did not start the review.", 502)
+  }
+  return taskId
+}
+
+function proposedFrom(value: unknown): ProposedMoment[] {
+  let data = value
+  if (value && typeof value === "object" && "data" in value) {
+    data = (value as { data?: unknown }).data
+  }
+  if (typeof data === "string") {
+    try {
+      data = JSON.parse(data)
+    } catch {
+      return []
+    }
+  }
+  if (!data || typeof data !== "object") {
+    return []
+  }
+  const highlights = (data as Record<string, unknown>).highlights
+  if (!Array.isArray(highlights)) {
+    return []
+  }
+  const moments: ProposedMoment[] = []
+  for (const item of highlights) {
+    if (!item || typeof item !== "object") {
+      continue
+    }
+    const record = item as Record<string, unknown>
+    const start = numberOf(record.start_time)
+    const end = numberOf(record.end_time)
+    if (start == null || end == null || !(end > start)) {
+      continue
+    }
+    const metadata =
+      record.metadata && typeof record.metadata === "object"
+        ? (record.metadata as Record<string, unknown>)
+        : {}
+    const label = typeof metadata.label === "string" ? metadata.label.trim() : ""
+    const why = typeof metadata.why === "string" ? metadata.why.trim() : ""
+    moments.push({
+      start,
+      end,
+      label: label || "Moment",
+      why,
+    })
+  }
+  return moments
+}
+
+export async function retrieveHighlightTask(taskId: string) {
+  const body = await request(`/analyze/tasks/${encodeURIComponent(taskId)}`)
+  const status = statusOf(body)
+  return {
+    status,
+    moments: status === "ready" ? proposedFrom(body && typeof body === "object" ? (body as { result?: unknown }).result ?? body : null) : [],
+  }
+}
+
 export async function deleteTwelveLabsIndex(indexId: string) {
   await request(`/indexes/${encodeURIComponent(indexId)}`, { method: "DELETE" })
 }

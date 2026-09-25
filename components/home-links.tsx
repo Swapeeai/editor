@@ -20,6 +20,12 @@ export function HomeLinks() {
         Media Library
       </ProjectLink>
       <ProjectLink
+        href="/review"
+        className={cn(buttonVariants({ variant: "outline", size: "lg" }), "h-10 px-4")}
+      >
+        Review
+      </ProjectLink>
+      <ProjectLink
         href="/create-video"
         className={cn(buttonVariants({ variant: "outline", size: "lg" }), "h-10 px-4")}
       >

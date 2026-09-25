@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server"
+import { prepareSelected } from "@/lib/ai-index"
 import { IndexSchemaError } from "@/lib/media-db"
-import { prepareProject } from "@/lib/ai-index"
 import { isProjectId } from "@/lib/projects"
+
+const UUID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
@@ -13,14 +16,23 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: "The request was empty." }, { status: 400 })
   }
-  const rawProject = (body as { projectId?: unknown }).projectId
-  const projectId = typeof rawProject === "string" ? rawProject : ""
+  const record = body as { projectId?: unknown; ids?: unknown }
+  const projectId = typeof record.projectId === "string" ? record.projectId : ""
   if (!isProjectId(projectId)) {
     return NextResponse.json({ error: "Pick a project first." }, { status: 400 })
   }
+  const ids = Array.isArray(record.ids)
+    ? record.ids.filter((id): id is string => typeof id === "string" && UUID.test(id))
+    : []
+  if (ids.length === 0) {
+    return NextResponse.json(
+      { error: "Select the videos to prepare. Nothing was sent." },
+      { status: 400 },
+    )
+  }
 
   try {
-    const result = await prepareProject(projectId)
+    const result = await prepareSelected(projectId, ids)
     if (!result.ok) {
       return NextResponse.json({ error: result.message }, { status: 200 })
     }

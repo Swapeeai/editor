@@ -5,7 +5,7 @@ import { NOT_CONNECTED_MESSAGE } from "@/lib/supabase"
 import { getSupabaseAdmin, MEDIA_BUCKET } from "@/lib/supabase-admin"
 import {
   FILE_TOO_BIG_MESSAGE,
-  MAX_UPLOAD_BYTES,
+  maxUploadBytes,
   resumableUploadEndpoint,
 } from "@/lib/upload-limit"
 
@@ -58,7 +58,7 @@ export async function POST(request: Request) {
     )
   }
 
-  if (size > MAX_UPLOAD_BYTES) {
+  if (size > maxUploadBytes()) {
     return NextResponse.json({ error: FILE_TOO_BIG_MESSAGE }, { status: 413 })
   }
 
