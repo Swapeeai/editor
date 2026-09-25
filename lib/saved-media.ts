@@ -60,6 +60,27 @@ export function mediaTypeFromFile(file: {
   return null
 }
 
+export function movedStoragePath(storagePath: string, projectId: ProjectId) {
+  const parts = storagePath.split("/").filter(Boolean)
+  if (parts.length < 2 || parts.some((part) => part === "." || part === "..")) {
+    return null
+  }
+  parts[0] = projectId
+  return parts.join("/")
+}
+
+export function formatSavedDate(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return ""
+  }
+  return date.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  })
+}
+
 export function fileNameFromStoragePath(storagePath: string) {
   const base = storagePath.split("/").pop() ?? storagePath
   return base.replace(
@@ -103,5 +124,6 @@ export function savedMediaAsClip(item: SavedMedia): SampleMedia {
     poster: item.mediaType === "photo" && item.signedUrl ? item.signedUrl : "",
     fileName: item.fileName,
     playbackUrl: item.signedUrl,
+    createdAt: item.createdAt,
   }
 }

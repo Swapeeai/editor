@@ -19,6 +19,7 @@ export type SampleMedia = {
   // Set for a real upload. Samples leave these out.
   fileName?: string
   playbackUrl?: string | null
+  createdAt?: string
 }
 
 const phuket = {

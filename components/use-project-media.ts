@@ -12,7 +12,8 @@ export type ProjectMediaState = {
   error: string | null
 }
 
-export function useProjectMedia(projectId: ProjectId): ProjectMediaState {
+export function useProjectMedia(projectId: ProjectId): ProjectMediaState & { reload: () => void } {
+  const [tick, setTick] = useState(0)
   const [state, setState] = useState<ProjectMediaState>({
     projectId,
     status: "loading",
@@ -57,7 +58,9 @@ export function useProjectMedia(projectId: ProjectId): ProjectMediaState {
       })
 
     return () => controller.abort()
-  }, [projectId])
+  }, [projectId, tick])
+
+  const reload = () => setTick((value) => value + 1)
 
   if (state.projectId !== projectId) {
     return {
@@ -66,8 +69,9 @@ export function useProjectMedia(projectId: ProjectId): ProjectMediaState {
       configured: false,
       items: [],
       error: null,
+      reload,
     }
   }
 
-  return state
+  return { ...state, reload }
 }

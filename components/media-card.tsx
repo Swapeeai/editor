@@ -1,23 +1,81 @@
+"use client"
+
+import { useState } from "react"
+import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle } from "@/components/ui/card"
+import { isProjectId, projects, type ProjectId } from "@/lib/projects"
+import { formatSavedDate } from "@/lib/saved-media"
 import type { SampleMedia } from "@/lib/sample-media"
 
 export function MediaCard({
   item,
-  sample = false,
+  onChanged,
 }: {
   item: SampleMedia
-  sample?: boolean
+  onChanged?: () => void
 }) {
   const kind = item.mediaType === "video" ? "Video" : "Photo"
   const playbackUrl = item.playbackUrl ?? null
+  const others = projects.filter((project) => project.id !== item.projectId)
+  const [target, setTarget] = useState<ProjectId>(others[0]?.id ?? "phuket")
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const uploaded = item.createdAt ? formatSavedDate(item.createdAt) : ""
+
+  async function moveFile() {
+    if (busy || target === item.projectId) {
+      return
+    }
+    setBusy(true)
+    setError(null)
+    try {
+      const response = await fetch("/api/media/move", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: item.id, projectId: target }),
+      })
+      const body = (await response.json()) as { error?: string }
+      if (!response.ok) {
+        throw new Error(body.error || "Could not move that file.")
+      }
+      onChanged?.()
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not move that file.")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function deleteFile() {
+    if (busy) {
+      return
+    }
+    const ok = window.confirm(`Delete “${item.title}” from ${item.retreatName}?`)
+    if (!ok) {
+      return
+    }
+    setBusy(true)
+    setError(null)
+    try {
+      const response = await fetch("/api/media/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: item.id }),
+      })
+      const body = (await response.json()) as { error?: string }
+      if (!response.ok) {
+        throw new Error(body.error || "Could not delete that file.")
+      }
+      onChanged?.()
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not delete that file.")
+    } finally {
+      setBusy(false)
+    }
+  }
 
   return (
-    <Card
-      className="h-full"
-      data-media-type={item.mediaType}
-      data-project={item.projectId}
-      data-source={sample ? "sample" : "upload"}
-    >
+    <Card className="h-full" data-media-type={item.mediaType} data-project={item.projectId}>
       {item.mediaType === "video" && playbackUrl ? (
         <video
           controls
@@ -39,20 +97,48 @@ export function MediaCard({
         </div>
       )}
       <CardHeader>
-        <p className="text-xs font-medium tracking-wide text-primary uppercase">
-          {kind}
-          {sample ? " · Sample" : null}
-        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium">
+            {item.retreatName}
+          </span>
+          <span className="text-xs text-muted-foreground">{kind}</span>
+          {uploaded ? <span className="text-xs text-muted-foreground">{uploaded}</span> : null}
+        </div>
         <CardTitle>{item.title}</CardTitle>
-        <p className="text-sm text-muted-foreground">
-          {item.retreatName} · {item.year}
-        </p>
-        <p className="text-sm text-muted-foreground">{item.location}</p>
-        <p className="text-sm text-muted-foreground">
-          {item.tags.length > 0
-            ? `Tags: ${item.tags.join(", ")}`
-            : "No tags yet. Search and Create Video use the title and file name."}
-        </p>
+        <div className="flex flex-col gap-2 pt-1">
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="text-muted-foreground">Move to project</span>
+            <select
+              value={target}
+              onChange={(event) => {
+                if (isProjectId(event.target.value)) {
+                  setTarget(event.target.value)
+                }
+              }}
+              disabled={busy}
+              className="h-10 rounded-lg border border-input bg-background px-2"
+            >
+              {others.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" onClick={moveFile} disabled={busy}>
+              {busy ? "Working…" : "Move"}
+            </Button>
+            <Button type="button" variant="outline" onClick={deleteFile} disabled={busy}>
+              Delete
+            </Button>
+          </div>
+          {error ? (
+            <p className="text-sm font-medium text-destructive" role="alert">
+              {error}
+            </p>
+          ) : null}
+        </div>
       </CardHeader>
     </Card>
   )
