@@ -61,9 +61,11 @@ function statusText(item: QueueItem) {
 export function FileQueue({
   items,
   onRemove,
+  doneLabel = "uploaded",
 }: {
   items: QueueItem[]
   onRemove?: (id: string) => void
+  doneLabel?: string
 }) {
   if (items.length === 0) {
     return null
@@ -75,7 +77,7 @@ export function FileQueue({
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-2">
         <p className="text-sm font-medium" role="status">
-          {uploaded} of {items.length} uploaded
+          {uploaded} of {items.length} {doneLabel}
         </p>
         <div className="h-2 overflow-hidden rounded-full bg-muted">
           <div className="h-full bg-primary" style={{ width: `${width}%` }} />

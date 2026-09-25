@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { ConvertHeic } from "@/components/convert-heic"
 import { Button } from "@/components/ui/button"
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { MediaCard } from "@/components/media-card"
@@ -119,6 +120,13 @@ export function LibraryGrid() {
               </p>
             ) : null}
           </div>
+        ) : null}
+        {media.status === "ready" && media.configured ? (
+          <ConvertHeic
+            projectId={projectId}
+            items={media.items}
+            onChanged={media.reload}
+          />
         ) : null}
       </div>
 

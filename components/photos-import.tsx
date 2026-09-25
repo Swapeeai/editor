@@ -17,6 +17,7 @@ import {
   type PhotosMediaItem,
 } from "@/lib/photos-picker"
 import { runPool, UPLOAD_CONCURRENCY } from "@/lib/run-pool"
+import { HEIC_CONVERT_MESSAGE, isHeicFile } from "@/lib/heic-photo"
 import { saveFileToLibrary } from "@/lib/save-to-library"
 import { fileTooBigMessage, MAX_UPLOAD_BYTES } from "@/lib/upload-limit"
 import { projectById, type ProjectId } from "@/lib/projects"
@@ -210,14 +211,30 @@ export function PhotosImport({ connected }: { connected: boolean }) {
       }
       const mimeType = item.mediaFile?.mimeType || downloaded.type || "application/octet-stream"
       const file = new File([downloaded.bytes], name, { type: mimeType })
-      updateRow(rowId, { size: file.size, detail: `Saving to ${projectName}` })
-      const saved = await saveFileToLibrary(file, projectId, (percent) => {
-        updateRow(rowId, {
-          percent,
-          detail: percent == null ? `Saving to ${projectName}` : `Uploading ${percent}%`,
-        })
+      updateRow(rowId, {
+        size: file.size,
+        detail: isHeicFile(file) ? HEIC_CONVERT_MESSAGE : `Saving to ${projectName}`,
       })
-      updateRow(rowId, { status: "done", percent: 100, detail: savedDetail(saved) })
+      const saved = await saveFileToLibrary(
+        file,
+        projectId,
+        (percent) => {
+          updateRow(rowId, {
+            percent,
+            detail: percent == null ? `Saving to ${projectName}` : `Uploading ${percent}%`,
+          })
+        },
+        (detail) => {
+          updateRow(rowId, { detail, percent: null })
+        },
+      )
+      updateRow(rowId, {
+        name: saved.fileName,
+        size: saved.size,
+        status: "done",
+        percent: 100,
+        detail: savedDetail(saved),
+      })
     } catch (caught) {
       updateRow(rowId, {
         status: "failed",

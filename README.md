@@ -44,8 +44,10 @@ Run `npm install` again only when `git pull` changes `package.json`. Do not dele
 ## What you do
 
 1. Pick a project at the top.
-2. On Upload, click **Choose videos**. Hold Ctrl (or Shift) to select many, then **Save**. The batch saves to the project under **Saving to**. Files over the upload limit are skipped. A failed file does not stop the rest. The limit is `NEXT_PUBLIC_MAX_UPLOAD_MB` in `.env.local` (5000, meaning 5 GB, when that line is missing). It must not be higher than the Supabase global file size limit. You can also import from Google Photos or Google Drive.
-3. Open Media Library to see what was saved.
+2. On Upload, click **Choose videos**. Hold Ctrl (or Shift) to select many, then **Save**. iPhone HEIC photos are turned into JPEG automatically. The batch saves to the project under **Saving to**. Files over the upload limit are skipped. A failed file does not stop the rest. The limit is `NEXT_PUBLIC_MAX_UPLOAD_MB` in `.env.local` (5000, meaning 5 GB, when that line is missing). It must not be higher than the Supabase global file size limit. You can also import from Google Photos or Google Drive.
+
+iPhone photos use `heic-convert`. That package includes libheif as JavaScript, so Windows does not need another install. This update changes `package.json`, so run `npm install` once after you update.
+3. Open Media Library to see what was saved. If an iPhone photo was already saved as HEIC, click **Convert iPhone photos to JPEG**. It converts only those photos in the project you have open. Other files stay as they are.
 4. On Create Video, type a direction with the word “then” between moments. Build the storyboard. Set **Start at second** if you want a different in-point. Choose **Export**, then download `retreat-video.mp4`.
 
 ## AI search (Twelve Labs)

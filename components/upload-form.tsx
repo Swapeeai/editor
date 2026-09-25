@@ -8,6 +8,7 @@ import { useLeaveGuard } from "@/components/use-leave-guard"
 import { useProject } from "@/components/project-provider"
 import { projects, type ProjectId } from "@/lib/projects"
 import { runPool, UPLOAD_CONCURRENCY } from "@/lib/run-pool"
+import { HEIC_CONVERT_MESSAGE, isHeicFile } from "@/lib/heic-photo"
 import { saveFileToLibrary } from "@/lib/save-to-library"
 import { mediaTypeFromFile } from "@/lib/saved-media"
 import { FILE_TOO_BIG_MESSAGE, formatUploadLimit, MAX_UPLOAD_BYTES } from "@/lib/upload-limit"
@@ -142,15 +143,28 @@ export function UploadForm({ connected }: { connected: boolean }) {
           if (!row || row.status !== "waiting" || !file) {
             return
           }
-          updateRow(id, { status: "uploading", percent: null, detail: "Uploading…" })
+          updateRow(id, {
+            status: "uploading",
+            percent: null,
+            detail: isHeicFile(file) ? HEIC_CONVERT_MESSAGE : "Uploading…",
+          })
           try {
-            const saved = await saveFileToLibrary(file, target, (percent) => {
-              updateRow(id, {
-                percent,
-                detail: percent == null ? "Uploading…" : `Uploading ${percent}%`,
-              })
-            })
+            const saved = await saveFileToLibrary(
+              file,
+              target,
+              (percent) => {
+                updateRow(id, {
+                  percent,
+                  detail: percent == null ? "Uploading…" : `Uploading ${percent}%`,
+                })
+              },
+              (detail) => {
+                updateRow(id, { detail, percent: null })
+              },
+            )
             updateRow(id, {
+              name: saved.fileName,
+              size: saved.size,
               status: "done",
               percent: 100,
               detail: savedDetail(saved),
@@ -251,7 +265,7 @@ export function UploadForm({ connected }: { connected: boolean }) {
           id="media-file"
           type="file"
           multiple
-          accept="video/*,image/*"
+          accept="video/*,image/*,.heic,.heif"
           onChange={onFileChange}
           className="sr-only"
         />

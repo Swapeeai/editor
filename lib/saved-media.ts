@@ -62,7 +62,7 @@ export function mediaTypeFromFile(file: {
   if (/\.(mp4|webm|mov|m4v)$/i.test(file.name)) {
     return "video"
   }
-  if (/\.(png|jpe?g|gif|webp|svg)$/i.test(file.name)) {
+  if (/\.(png|jpe?g|gif|webp|svg|heic|heif)$/i.test(file.name)) {
     return "photo"
   }
   return null

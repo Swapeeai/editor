@@ -159,8 +159,10 @@ if (Test-Path -LiteralPath $nextDir) {
   }
 }
 
-Write-Host "Done. Now run: npm run dev"
+Write-Host "Done. This update adds iPhone photo conversion, so run npm install once, then npm run dev"
 Write-Host "Folder: $AppDir"
 Write-Host "Then open http://localhost:43123/upload"
 Write-Host "The button must say Choose videos. If it says Choose a file from this computer, this update did not land."
-Pause-Window
+if (-not $Url) {
+  Pause-Window
+}

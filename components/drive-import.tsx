@@ -11,6 +11,7 @@ import { bytesFromDriveSize, planDriveImport } from "@/lib/drive-import-plan"
 import { getGoogleDriveConfig } from "@/lib/google-config"
 import { projectById, type ProjectId } from "@/lib/projects"
 import { runPool, UPLOAD_CONCURRENCY } from "@/lib/run-pool"
+import { HEIC_CONVERT_MESSAGE, isHeicFile } from "@/lib/heic-photo"
 import { saveFileToLibrary } from "@/lib/save-to-library"
 import { fileTooBigMessage, MAX_UPLOAD_BYTES } from "@/lib/upload-limit"
 
@@ -306,14 +307,30 @@ export function DriveImport({ connected }: { connected: boolean }) {
         })
         return
       }
-      updateRow(id, { size: file.size, detail: `Saving to ${projectName}` })
-      const saved = await saveFileToLibrary(file, projectId, (percent) => {
-        updateRow(id, {
-          percent,
-          detail: percent == null ? `Saving to ${projectName}` : `Uploading ${percent}%`,
-        })
+      updateRow(id, {
+        size: file.size,
+        detail: isHeicFile(file) ? HEIC_CONVERT_MESSAGE : `Saving to ${projectName}`,
       })
-      updateRow(id, { status: "done", percent: 100, detail: savedDetail(saved) })
+      const saved = await saveFileToLibrary(
+        file,
+        projectId,
+        (percent) => {
+          updateRow(id, {
+            percent,
+            detail: percent == null ? `Saving to ${projectName}` : `Uploading ${percent}%`,
+          })
+        },
+        (detail) => {
+          updateRow(id, { detail, percent: null })
+        },
+      )
+      updateRow(id, {
+        name: saved.fileName,
+        size: saved.size,
+        status: "done",
+        percent: 100,
+        detail: savedDetail(saved),
+      })
     } catch (caught) {
       updateRow(id, {
         status: "failed",

@@ -17,6 +17,11 @@ export const dynamic = "force-dynamic"
 const UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+function libraryTitle(requested: string, fileName: string) {
+  const cleaned = requested.replace(/[\u0000-\u001f]/g, "").trim().slice(0, 120)
+  return cleaned || titleFromFileName(fileName)
+}
+
 // Writes the library row after the browser has sent the file to Storage.
 
 export async function POST(request: Request) {
@@ -41,12 +46,14 @@ export async function POST(request: Request) {
     fileName?: unknown
     mimeType?: unknown
     storagePath?: unknown
+    title?: unknown
   }
   const id = typeof record.id === "string" ? record.id : ""
   const projectId = typeof record.projectId === "string" ? record.projectId : ""
   const fileName = typeof record.fileName === "string" ? record.fileName : ""
   const mimeType = typeof record.mimeType === "string" ? record.mimeType : ""
   const storagePath = typeof record.storagePath === "string" ? record.storagePath : ""
+  const requestedTitle = typeof record.title === "string" ? record.title : ""
 
   if (!UUID.test(id) || !isProjectId(projectId)) {
     return NextResponse.json(
@@ -92,7 +99,7 @@ export async function POST(request: Request) {
     .insert({
       id,
       project_id: projectId,
-      title: titleFromFileName(fileName),
+      title: libraryTitle(requestedTitle, fileName),
       media_type: mediaType,
       storage_path: storagePath,
       mime_type: mimeType || info.data.contentType || null,

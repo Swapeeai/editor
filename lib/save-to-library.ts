@@ -1,3 +1,9 @@
+import {
+  convertHeicToJpeg,
+  HEIC_CONVERT_MESSAGE,
+  HEIC_FAIL_MESSAGE,
+  isHeicFile,
+} from "@/lib/heic-photo"
 import { uploadFileResumable } from "@/lib/tus-upload"
 import { plainStorageError, RESUMABLE_AFTER_BYTES } from "@/lib/upload-limit"
 import type { SavedMedia } from "@/lib/saved-media"
@@ -9,16 +15,28 @@ export async function saveFileToLibrary(
   file: File,
   projectId: string,
   onProgress?: (percent: number | null) => void,
+  onStatus?: (detail: string) => void,
 ) {
+  let ready = file
+  let titleOverride: string | null = null
+  if (isHeicFile(file)) {
+    onStatus?.(HEIC_CONVERT_MESSAGE)
+    try {
+      ready = await convertHeicToJpeg(file)
+      titleOverride = ready.name
+    } catch {
+      throw new Error(HEIC_FAIL_MESSAGE)
+    }
+  }
   onProgress?.(null)
   const preparedResponse = await fetch("/api/upload", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       projectId,
-      fileName: file.name,
-      mimeType: file.type,
-      size: file.size,
+      fileName: ready.name,
+      mimeType: ready.type,
+      size: ready.size,
     }),
   })
   const prepared = (await preparedResponse.json()) as {
@@ -34,7 +52,7 @@ export async function saveFileToLibrary(
     throw new Error(prepared.error || "Could not start the upload.")
   }
 
-  if (file.size > RESUMABLE_AFTER_BYTES) {
+  if (ready.size > RESUMABLE_AFTER_BYTES) {
     if (!prepared.token || !prepared.resumableEndpoint) {
       throw new Error("Could not start the large upload.")
     }
@@ -42,11 +60,11 @@ export async function saveFileToLibrary(
       prepared.resumableEndpoint,
       prepared.token,
       prepared.storagePath,
-      file,
+      ready,
       onProgress,
     )
   } else {
-    await putFile(prepared.signedUrl, file, onProgress)
+    await putFile(prepared.signedUrl, ready, onProgress)
   }
 
   const finishedResponse = await fetch("/api/upload/complete", {
@@ -55,9 +73,10 @@ export async function saveFileToLibrary(
     body: JSON.stringify({
       id: prepared.id,
       projectId,
-      fileName: file.name,
-      mimeType: file.type,
+      fileName: ready.name,
+      mimeType: ready.type,
       storagePath: prepared.storagePath,
+      ...(titleOverride ? { title: titleOverride } : {}),
     }),
   })
   const finished = (await finishedResponse.json()) as {
@@ -70,8 +89,10 @@ export async function saveFileToLibrary(
 
   onProgress?.(100)
   return {
-    title: finished.item?.title || prepared.title || file.name,
+    title: finished.item?.title || titleOverride || prepared.title || ready.name,
     item: finished.item ?? null,
+    fileName: ready.name,
+    size: ready.size,
   }
 }
 
