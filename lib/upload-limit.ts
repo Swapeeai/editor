@@ -6,7 +6,7 @@
 export const MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 
 export const FILE_TOO_BIG_MESSAGE =
-  "This file is bigger than 50 MB. The free Supabase plan allows 50 MB per file, and about 1 GB for all files together. Shorten the video, or raise the file size limit in Supabase Storage settings on a paid plan."
+  "This file is bigger than 50 MB, so it was not saved."
 
 export const STORAGE_FULL_MESSAGE =
   "Supabase storage is full. The free plan holds about 1 GB for all files together. Delete some files in Storage, or move to a paid plan."

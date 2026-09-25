@@ -1,12 +1,12 @@
 "use client"
 
 import { useEffect, useRef, useState, type ChangeEvent } from "react"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { useProject } from "@/components/project-provider"
 import { saveFileToLibrary } from "@/lib/save-to-library"
-import { NOT_CONNECTED_MESSAGE } from "@/lib/supabase"
 import { FILE_TOO_BIG_MESSAGE, MAX_UPLOAD_BYTES } from "@/lib/upload-limit"
 
 type PreviewKind = "video" | "image"
@@ -115,7 +115,7 @@ export function UploadForm({ connected }: { connected: boolean }) {
 
     setSaving(true)
     setError(null)
-    setStatus("Saving… the file goes straight to Storage. A long video can take a minute.")
+    setStatus("Saving…")
 
     try {
       const savedFile = await saveFileToLibrary(file, project.id)
@@ -141,8 +141,11 @@ export function UploadForm({ connected }: { connected: boolean }) {
       onSubmit={(event) => event.preventDefault()}
     >
       <div className="flex flex-col gap-2">
-        <label htmlFor="media-file" className="text-sm font-medium">
-          Photo or video
+        <label
+          htmlFor="media-file"
+          className={cn(buttonVariants({ size: "lg" }), "h-10 w-fit cursor-pointer px-4")}
+        >
+          Choose a file from this computer
         </label>
         <Input
           key={inputKey}
@@ -150,23 +153,11 @@ export function UploadForm({ connected }: { connected: boolean }) {
           type="file"
           accept="image/*,video/*"
           onChange={onFileChange}
-          className="h-auto cursor-pointer py-2"
+          className="sr-only"
         />
         <p className="text-sm text-muted-foreground">
-          This file will belong to {project.name}.
+          This file belongs to {project.name}.
         </p>
-        {connected ? (
-          <p className="text-sm text-muted-foreground">
-            The preview stays on this computer. Save to library sends the file
-            straight to Storage for {project.name}. Each file must be 50 MB or
-            smaller. The free plan holds about 1 GB in total.
-          </p>
-        ) : (
-          <p className="text-sm text-muted-foreground" role="status">
-            {NOT_CONNECTED_MESSAGE} The preview stays on this computer. Nothing
-            is saved.
-          </p>
-        )}
       </div>
 
       {error ? (
@@ -216,11 +207,6 @@ export function UploadForm({ connected }: { connected: boolean }) {
                 <p className="text-sm text-destructive" role="alert">
                   This browser cannot play that file. The file name above is
                   still correct.
-                </p>
-              ) : null}
-              {kind === "video" && !cantPlay ? (
-                <p className="text-sm text-muted-foreground">
-                  If the player stays blank, this browser cannot play that file.
                 </p>
               ) : null}
             </>

@@ -10,7 +10,6 @@ import { getGoogleDriveConfig } from "@/lib/google-config"
 import { saveFileToLibrary } from "@/lib/save-to-library"
 import { MAX_UPLOAD_BYTES } from "@/lib/upload-limit"
 
-const EXPECTED_ORIGIN = "http://localhost:43123"
 const VIDEO_MIMES = [
   "video/mp4",
   "video/webm",
@@ -31,7 +30,7 @@ const PHOTO_MIMES = [
 ].join(",")
 
 const PICKER_FIX =
-  "Google could not open the file window. In Google Cloud, open APIs & Services, then Library, search for Google Picker API, and click Enable. You can paste Drive links below instead."
+  "Could not open Google Drive. Enable Google Picker API, then try again."
 
 type ImportState = "waiting" | "checking" | "downloading" | "saving" | "imported" | "skipped" | "failed"
 
@@ -176,9 +175,9 @@ function signInMessage(error: string | undefined) {
 
 function refusedMessage(driveReadonly: boolean) {
   if (driveReadonly) {
-    return "Google refused this file. Check that you can open it in Drive, and that you allowed the wider Drive read permission when you signed in."
+    return "Google refused this file. Sign in again, then retry the link."
   }
-  return "Google refused this file. The normal permission only covers files you choose in the Picker. Pick it there, or set NEXT_PUBLIC_GOOGLE_DRIVE_READONLY=yes and sign in again. The setup guide explains that screen."
+  return "Google refused this file. Pick it in the Drive window instead."
 }
 
 async function driveMetadata(token: string, id: string, driveReadonly: boolean) {
@@ -241,6 +240,7 @@ export function DriveImport({ connected }: { connected: boolean }) {
   const [rows, setRows] = useState<ImportRow[]>([])
   const [summary, setSummary] = useState<string | null>(null)
   const [links, setLinks] = useState("")
+  const [moreOptions, setMoreOptions] = useState(false)
 
   function updateRow(id: string, patch: Partial<ImportRow>) {
     setRows((current) => current.map((row) => (row.id === id ? { ...row, ...patch } : row)))
@@ -479,64 +479,58 @@ export function DriveImport({ connected }: { connected: boolean }) {
     })
   }
 
-  if (!google) {
-    return (
-      <div className="flex flex-col gap-2">
-        <Button type="button" disabled>
-          Google Drive not connected yet — see setup guide
-        </Button>
-        <p className="text-sm text-muted-foreground">
-          This copies files you pick into {project.name}. It does not keep
-          watching Google Drive. The steps are in{" "}
-          <span className="font-medium">docs/google-drive-setup.md</span>.
-        </p>
-      </div>
-    )
-  }
-
   return (
-    <div className="flex flex-col gap-3">
-      <Button type="button" onClick={startImport} disabled={busy || !connected}>
-        {busy ? "Working with Google Drive…" : "Import from Google Drive"}
+    <div className="flex flex-col gap-2">
+      <Button type="button" onClick={startImport} disabled={!google || busy || !connected}>
+        {busy ? "Working…" : "Import from Google Drive"}
       </Button>
       <p className="text-sm text-muted-foreground">
-        Pick videos or photos once. They are copied into {project.name}. The
-        app does not sync Drive later. Videos are listed first. Each file must
-        be 50 MB or smaller. Open this page at {EXPECTED_ORIGIN}. If the Google
-        window cannot open, enable Google Picker API, or paste links below.
+        {google
+          ? `Copies files you pick into ${project.name}.`
+          : "Add the Google Client ID and project number, then restart."}
       </p>
       {error ? (
         <p className="text-sm font-medium text-destructive" role="alert">
           {error}
         </p>
       ) : null}
-
-      <div className="flex flex-col gap-2">
-        <label htmlFor="drive-links" className="text-sm font-medium">
-          Paste a Google Drive link
-        </label>
-        <Textarea
-          id="drive-links"
-          value={links}
-          onChange={(event) => setLinks(event.target.value)}
-          rows={4}
-          placeholder={"One file link per line\nhttps://drive.google.com/file/d/…/view"}
-          className="min-h-24"
-        />
-        <p className="text-sm text-muted-foreground">
-          {google.driveReadonly
-            ? "The wider Drive read permission is on, so a link to a file you can open can be copied."
-            : "The normal permission only covers files you choose in the Picker. If a pasted link is refused, pick that file in the window, or turn on NEXT_PUBLIC_GOOGLE_DRIVE_READONLY in the setup guide."}
-        </p>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={startLinkImport}
-          disabled={busy || !connected}
-        >
-          Import these links
-        </Button>
-      </div>
+      {google ? (
+        <div className="flex flex-col gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="w-fit px-0"
+            aria-expanded={moreOptions}
+            onClick={() => setMoreOptions((open) => !open)}
+          >
+            More options
+          </Button>
+          {moreOptions ? (
+            <div className="flex flex-col gap-2">
+              <label htmlFor="drive-links" className="text-sm font-medium">
+                Paste a Google Drive link
+              </label>
+              <Textarea
+                id="drive-links"
+                value={links}
+                onChange={(event) => setLinks(event.target.value)}
+                rows={3}
+                placeholder="One file link per line"
+                className="min-h-20"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={startLinkImport}
+                disabled={busy || !connected}
+              >
+                Import these links
+              </Button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       {rows.length > 0 ? (
         <ul className="flex flex-col gap-1 text-sm" aria-live="polite">

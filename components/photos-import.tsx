@@ -17,8 +17,6 @@ import {
 import { saveFileToLibrary } from "@/lib/save-to-library"
 import { MAX_UPLOAD_BYTES } from "@/lib/upload-limit"
 
-const EXPECTED_ORIGIN = "http://localhost:43123"
-
 type ImportState = "waiting" | "checking" | "downloading" | "saving" | "imported" | "skipped" | "failed"
 
 type ImportRow = {
@@ -384,15 +382,18 @@ export function PhotosImport({ connected }: { connected: boolean }) {
     setPickerLink(null)
   }
 
+  const setupError = error === PHOTOS_SETUP_NOTE
+
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-2">
       <Button type="button" onClick={startImport} disabled={!id || busy || !connected}>
-        {busy ? "Working with Google Photos…" : id ? "Import from Google Photos" : "Google Photos not connected yet — see setup guide"}
+        {busy ? "Working…" : "Import from Google Photos"}
       </Button>
       <p className="text-sm text-muted-foreground">
-        Your retreat videos live in Google Photos. This copies the ones you pick into {project.name}. It does not sync later. Each file must be 50 MB or smaller. Open this page at {EXPECTED_ORIGIN}.
+        {id
+          ? `Copies photos and videos you pick into ${project.name}.`
+          : "Add the Google Client ID, then restart."}
       </p>
-      <p className="text-sm text-muted-foreground">{PHOTOS_SETUP_NOTE}</p>
       {busy ? (
         <Button type="button" variant="outline" onClick={cancelImport}>
           Cancel
@@ -408,7 +409,15 @@ export function PhotosImport({ connected }: { connected: boolean }) {
           Open Google Photos to choose files
         </a>
       ) : null}
-      {error ? (
+      {setupError ? (
+        <div className="max-w-md rounded-lg border border-destructive/40 px-3 py-2 text-sm" role="alert">
+          <ol className="list-decimal space-y-1 pl-5">
+            <li>APIs & Services → Library. Enable Photos Picker API.</li>
+            <li>Data Access → Add or remove scopes. Add the Photos scope. Save.</li>
+            <li>Click Import from Google Photos and sign in again.</li>
+          </ol>
+        </div>
+      ) : error ? (
         <p className="text-sm font-medium text-destructive" role="alert">
           {error}
         </p>

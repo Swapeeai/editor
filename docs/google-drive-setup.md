@@ -145,7 +145,7 @@ If the Google window says the developer key is invalid, the app shows a short me
 
 ## 11. Paste a Drive link
 
-On Upload, under the import button, there is **Paste a Google Drive link**. Put one file link on each line, then choose **Import these links**. A folder link will not work.
+On Upload, choose **More options**, then paste one file link per line and choose **Import these links**. A folder link will not work.
 
 The normal permission is `drive.file`. It only covers files you choose in the Picker window, or files this app created. A pasted link to any other file is refused. The page says so. It does not show Google’s raw error.
 
