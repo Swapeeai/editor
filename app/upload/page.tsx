@@ -14,7 +14,7 @@ export default function UploadPage() {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8 sm:py-12">
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-semibold tracking-tight">Upload</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">Upload videos</h1>
         <p className="text-base leading-7 text-muted-foreground">
           {connected
             ? `Click Choose videos. Hold Ctrl (or Shift) to select many. Then Save. Each file can be ${formatUploadLimit()}.`
