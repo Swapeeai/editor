@@ -1,223 +1,299 @@
 "use client"
 
-import { useEffect, useRef, useState, type ChangeEvent } from "react"
-import Link from "next/link"
+import { useRef, useState, type ChangeEvent, type DragEvent } from "react"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
+import { BatchSummary, FileQueue, savedDetail, type QueueItem } from "@/components/file-queue"
+import { useLeaveGuard } from "@/components/use-leave-guard"
 import { useProject } from "@/components/project-provider"
+import { filesFromDataTransfer } from "@/lib/collect-dropped-files"
 import { projects, type ProjectId } from "@/lib/projects"
+import { runPool, UPLOAD_CONCURRENCY } from "@/lib/run-pool"
 import { saveFileToLibrary } from "@/lib/save-to-library"
-import { FILE_TOO_BIG_MESSAGE, MAX_UPLOAD_BYTES } from "@/lib/upload-limit"
+import { mediaTypeFromFile } from "@/lib/saved-media"
+import { FILE_TOO_BIG_MESSAGE, formatUploadLimit, MAX_UPLOAD_BYTES } from "@/lib/upload-limit"
 
-type PreviewKind = "video" | "image"
-
-type SavedReceipt = {
-  fileName: string
-  projectId: ProjectId
-  projectName: string
-  previewUrl: string
-  kind: PreviewKind
-}
-
-function previewKind(file: File): PreviewKind | null {
-  if (file.type.startsWith("video/")) {
-    return "video"
+function rowForFile(file: File, id: string): QueueItem {
+  if (!mediaTypeFromFile({ type: file.type, name: file.name })) {
+    return {
+      id,
+      name: file.name,
+      size: file.size,
+      status: "skipped",
+      percent: null,
+      detail: "Not a photo or a video.",
+    }
   }
-  if (file.type.startsWith("image/")) {
-    return "image"
+  if (file.size > MAX_UPLOAD_BYTES) {
+    return {
+      id,
+      name: file.name,
+      size: file.size,
+      status: "skipped",
+      percent: null,
+      detail: FILE_TOO_BIG_MESSAGE,
+    }
   }
-  if (/\.(mp4|webm|mov|m4v)$/i.test(file.name)) {
-    return "video"
+  if (file.size <= 0) {
+    return {
+      id,
+      name: file.name,
+      size: file.size,
+      status: "skipped",
+      percent: null,
+      detail: "This file is empty, so it was not uploaded.",
+    }
   }
-  if (/\.(png|jpe?g|gif|webp|svg)$/i.test(file.name)) {
-    return "image"
+  return {
+    id,
+    name: file.name,
+    size: file.size,
+    status: "waiting",
+    percent: null,
+    detail: "Waiting",
   }
-  return null
 }
 
 export function UploadForm({ connected }: { connected: boolean }) {
   const { projectId, setProjectId } = useProject()
   const project = projects.find((item) => item.id === projectId) ?? projects[0]
-  const [file, setFile] = useState<File | null>(null)
-  const [kind, setKind] = useState<PreviewKind | null>(null)
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const filesRef = useRef(new Map<string, File>())
+  const rowsRef = useRef<QueueItem[]>([])
+  const runningRef = useRef(false)
+  const batchProjectRef = useRef<ProjectId>(project.id)
+  const [batchProjectId, setBatchProjectId] = useState<ProjectId>(project.id)
+  const [rows, setRows] = useState<QueueItem[]>([])
+  const [running, setRunning] = useState(false)
+  const [finished, setFinished] = useState(false)
+  const [dragging, setDragging] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
-  const [progress, setProgress] = useState<number | null>(null)
-  const [receipt, setReceipt] = useState<SavedReceipt | null>(null)
-  const [cantPlay, setCantPlay] = useState(false)
   const [inputKey, setInputKey] = useState(0)
-  const previewUrlRef = useRef<string | null>(null)
 
-  useEffect(() => {
-    return () => {
-      if (previewUrlRef.current) {
-        URL.revokeObjectURL(previewUrlRef.current)
-      }
-    }
-  }, [])
+  useLeaveGuard(running)
 
-  function replacePreview(nextFile: File | null, nextKind: PreviewKind | null) {
-    if (previewUrlRef.current) {
-      URL.revokeObjectURL(previewUrlRef.current)
-      previewUrlRef.current = null
-    }
-
-    if (!nextFile || !nextKind) {
-      setFile(null)
-      setKind(null)
-      setPreviewUrl(null)
-      setCantPlay(false)
-      return
-    }
-
-    const url = URL.createObjectURL(nextFile)
-    previewUrlRef.current = url
-    setFile(nextFile)
-    setKind(nextKind)
-    setPreviewUrl(url)
-    setCantPlay(false)
+  function commit(next: QueueItem[]) {
+    rowsRef.current = next
+    setRows(next)
   }
 
-  function onFileChange(event: ChangeEvent<HTMLInputElement>) {
-    const nextFile = event.target.files?.[0]
-    if (!nextFile) {
-      return
-    }
-
-    const nextKind = previewKind(nextFile)
-    setReceipt(null)
-    if (!nextKind) {
-      setError("Choose a photo or a video.")
-      replacePreview(null, null)
-      return
-    }
-
-    if (nextFile.size > MAX_UPLOAD_BYTES) {
-      setError(FILE_TOO_BIG_MESSAGE)
-    } else {
-      setError(null)
-    }
-    replacePreview(nextFile, nextKind)
+  function updateRow(id: string, patch: Partial<QueueItem>) {
+    commit(rowsRef.current.map((row) => (row.id === id ? { ...row, ...patch } : row)))
   }
 
-  function uploadAnother() {
+  function addFiles(files: File[]) {
+    if (files.length === 0) {
+      setError("That drop did not contain any files.")
+      return
+    }
+    const nextRows = files.map((file) => {
+      const id = crypto.randomUUID()
+      filesRef.current.set(id, file)
+      return rowForFile(file, id)
+    })
+    commit([...rowsRef.current, ...nextRows])
+    setFinished(false)
     setError(null)
-    setReceipt(null)
-    setProgress(null)
-    replacePreview(null, null)
     setInputKey((key) => key + 1)
   }
 
-  async function saveToLibrary() {
-    if (!file || !kind || !previewUrl || !connected || saving) {
+  function onFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const list = event.target.files
+    if (!list || list.length === 0) {
       return
     }
+    addFiles(Array.from(list))
+  }
 
-    if (file.size > MAX_UPLOAD_BYTES) {
-      setError(FILE_TOO_BIG_MESSAGE)
-      return
-    }
-
-    const savedName = file.name
-    const savedKind = kind
-    const savedPreview = previewUrl
-    setSaving(true)
-    setError(null)
-    setReceipt(null)
-    setProgress(null)
-
+  async function onDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault()
+    setDragging(false)
     try {
-      await saveFileToLibrary(file, project.id, setProgress)
-      setReceipt({
-        fileName: savedName,
-        projectId: project.id,
-        projectName: project.name,
-        previewUrl: savedPreview,
-        kind: savedKind,
-      })
-    } catch (caught) {
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : "Could not save that file. Check that the app is running, then try again.",
-      )
-    } finally {
-      setSaving(false)
+      addFiles(await filesFromDataTransfer(event.dataTransfer))
+    } catch {
+      setError("Could not read that drop. Choose the files with the button instead.")
     }
   }
 
-  const canSave = Boolean(file && connected && !saving && file.size <= MAX_UPLOAD_BYTES)
+  function removeRow(id: string) {
+    const row = rowsRef.current.find((item) => item.id === id)
+    if (!row || row.status === "uploading") {
+      return
+    }
+    filesRef.current.delete(id)
+    commit(rowsRef.current.filter((item) => item.id !== id))
+  }
+
+  async function drain(target: ProjectId) {
+    if (runningRef.current) {
+      return
+    }
+    runningRef.current = true
+    setRunning(true)
+    setFinished(false)
+    setError(null)
+    try {
+      while (rowsRef.current.some((row) => row.status === "waiting")) {
+        const ids = rowsRef.current.filter((row) => row.status === "waiting").map((row) => row.id)
+        await runPool(ids, UPLOAD_CONCURRENCY, async (id) => {
+          const row = rowsRef.current.find((item) => item.id === id)
+          const file = filesRef.current.get(id)
+          if (!row || row.status !== "waiting" || !file) {
+            return
+          }
+          updateRow(id, { status: "uploading", percent: null, detail: "Uploading…" })
+          try {
+            const saved = await saveFileToLibrary(file, target, (percent) => {
+              updateRow(id, {
+                percent,
+                detail: percent == null ? "Uploading…" : `Uploading ${percent}%`,
+              })
+            })
+            updateRow(id, {
+              status: "done",
+              percent: 100,
+              detail: savedDetail(saved),
+            })
+          } catch (caught) {
+            updateRow(id, {
+              status: "failed",
+              percent: null,
+              detail: caught instanceof Error ? caught.message : "Could not save this file.",
+            })
+          }
+        })
+      }
+    } finally {
+      runningRef.current = false
+      setRunning(false)
+      setFinished(true)
+    }
+  }
+
+  function startUpload() {
+    if (!connected || runningRef.current) {
+      return
+    }
+    if (!rowsRef.current.some((row) => row.status === "waiting")) {
+      return
+    }
+    batchProjectRef.current = project.id
+    setBatchProjectId(project.id)
+    void drain(project.id)
+  }
+
+  function retryFailed() {
+    const next = rowsRef.current.map((row) =>
+      row.status === "failed"
+        ? { ...row, status: "waiting" as const, percent: null, detail: "Waiting" }
+        : row,
+    )
+    if (!next.some((row) => row.status === "waiting")) {
+      return
+    }
+    commit(next)
+    void drain(batchProjectRef.current)
+  }
+
+  const waiting = rows.filter((row) => row.status === "waiting").length
+  const saved = rows.filter((row) => row.status === "done")
+  const skipped = rows
+    .filter((row) => row.status === "skipped")
+    .map((row) => ({ name: row.name, detail: row.detail }))
+  const failed = rows.filter((row) => row.status === "failed").length
+  const indexing = saved.filter((row) => row.detail.includes("Indexing")).length
+  const batchProject = projects.find((item) => item.id === batchProjectId) ?? project
 
   return (
-    <form
-      className="flex flex-col gap-4"
-      onSubmit={(event) => event.preventDefault()}
-    >
-      <div className="flex flex-col gap-3">
-        <label
-          htmlFor="media-file"
-          className={cn(buttonVariants({ size: "lg" }), "h-10 w-fit cursor-pointer px-4")}
-        >
-          Choose a file from this computer
-        </label>
-        <Input
-          key={inputKey}
+    <div className="flex flex-col gap-4">
+      <fieldset className="flex flex-col gap-2 rounded-lg border p-3" disabled={running}>
+        <legend className="px-1 text-lg font-semibold">Saving to: {project.name}</legend>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          {projects.map((item) => {
+            const selected = item.id === project.id
+            return (
+              <label
+                key={item.id}
+                className={cn(
+                  "flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-3 text-sm font-medium",
+                  selected ? "border-primary bg-primary/10" : "border-input",
+                  running && "cursor-not-allowed opacity-70",
+                )}
+              >
+                <input
+                  type="radio"
+                  name="save-to"
+                  value={item.id}
+                  checked={selected}
+                  disabled={running}
+                  onChange={() => setProjectId(item.id)}
+                />
+                {item.name}
+              </label>
+            )
+          })}
+        </div>
+      </fieldset>
+
+      <div
+        className={cn(
+          "flex flex-col gap-3 rounded-lg border border-dashed p-4",
+          dragging && "border-primary bg-primary/5",
+        )}
+        onDragOver={(event) => {
+          event.preventDefault()
+          setDragging(true)
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(event) => void onDrop(event)}
+      >
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <label
+            htmlFor="media-file"
+            className={cn(buttonVariants({ size: "lg" }), "h-10 w-fit cursor-pointer px-4")}
+          >
+            Choose files from this computer
+          </label>
+          <label
+            htmlFor="media-folder"
+            className={cn(buttonVariants({ variant: "outline", size: "lg" }), "h-10 w-fit cursor-pointer px-4")}
+          >
+            Choose a folder
+          </label>
+        </div>
+        <input
+          key={`files-${inputKey}`}
           id="media-file"
           type="file"
+          multiple
           accept="image/*,video/*"
           onChange={onFileChange}
           className="sr-only"
         />
-        {file ? <p className="text-sm font-medium break-all">{file.name}</p> : null}
-
-        <fieldset className="flex flex-col gap-2 rounded-lg border p-3">
-          <legend className="px-1 text-lg font-semibold">Saving to: {project.name}</legend>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            {projects.map((item) => {
-              const selected = item.id === project.id
-              return (
-                <label
-                  key={item.id}
-                  className={cn(
-                    "flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-3 text-sm font-medium",
-                    selected ? "border-primary bg-primary/10" : "border-input",
-                  )}
-                >
-                  <input
-                    type="radio"
-                    name="save-to"
-                    value={item.id}
-                    checked={selected}
-                    onChange={() => setProjectId(item.id)}
-                  />
-                  {item.name}
-                </label>
-              )
-            })}
-          </div>
-        </fieldset>
-
-        <Button type="button" onClick={saveToLibrary} disabled={!canSave}>
-          {saving ? "Saving…" : `Save to ${project.name}`}
-        </Button>
+        <input
+          key={`folder-${inputKey}`}
+          id="media-folder"
+          type="file"
+          multiple
+          accept="image/*,video/*"
+          // React's type list does not include the folder attribute.
+          {...{ webkitdirectory: "", directory: "" }}
+          onChange={onFileChange}
+          className="sr-only"
+        />
+        <p className="text-sm text-muted-foreground">
+          Or drop files or a folder here. Every file in this batch saves to {project.name}.
+          Titles use the file name. Files over {formatUploadLimit()} are skipped.
+        </p>
       </div>
 
-      {saving ? (
-        <div className="flex flex-col gap-2" role="status">
-          <p className="text-sm font-medium">
-            Saving {file?.name}
-            {progress == null ? "…" : `… ${progress}%`}
-          </p>
-          <div className="h-2 overflow-hidden rounded-full bg-muted">
-            <div
-              className={cn("h-full bg-primary", progress == null && "w-1/3 animate-pulse")}
-              style={progress == null ? undefined : { width: `${progress}%` }}
-            />
-          </div>
-        </div>
+      <Button type="button" onClick={startUpload} disabled={!connected || running || waiting === 0}>
+        {running ? "Uploading…" : `Upload ${waiting} to ${project.name}`}
+      </Button>
+
+      {running ? (
+        <p className="text-sm text-muted-foreground" role="status">
+          Leave this page open until the batch finishes.
+        </p>
       ) : null}
 
       {error ? (
@@ -226,73 +302,20 @@ export function UploadForm({ connected }: { connected: boolean }) {
         </p>
       ) : null}
 
-      {receipt ? (
-        <Card className="border-primary">
-          <CardHeader>
-            <CardTitle>Saved to {receipt.projectName}</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            <p className="text-sm font-medium break-all">{receipt.fileName}</p>
-            {receipt.kind === "image" ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={receipt.previewUrl}
-                alt=""
-                className="aspect-video w-full rounded-lg bg-muted object-contain"
-              />
-            ) : (
-              <video
-                src={receipt.previewUrl}
-                className="aspect-video w-full rounded-lg bg-black"
-                muted
-              />
-            )}
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Link
-                href={`/library?project=${receipt.projectId}`}
-                className={cn(buttonVariants(), "h-8 px-2.5")}
-              >
-                View in library
-              </Link>
-              <Button type="button" variant="outline" onClick={uploadAnother}>
-                Upload another
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle>Preview</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            {!file || !previewUrl || !kind ? (
-              <p className="text-sm text-muted-foreground">No photo or video chosen yet.</p>
-            ) : kind === "image" ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={previewUrl}
-                alt={`Preview of ${file.name}`}
-                className="aspect-video w-full rounded-lg bg-muted object-contain"
-              />
-            ) : (
-              <video
-                key={previewUrl}
-                controls
-                src={previewUrl}
-                className="aspect-video w-full rounded-lg bg-black"
-                onError={() => setCantPlay(true)}
-                onCanPlay={() => setCantPlay(false)}
-              />
-            )}
-            {kind === "video" && cantPlay ? (
-              <p className="text-sm text-destructive" role="alert">
-                This browser cannot play that file. The file name above is still correct.
-              </p>
-            ) : null}
-          </CardContent>
-        </Card>
-      )}
-    </form>
+      <FileQueue items={rows} onRemove={removeRow} />
+
+      {finished && rows.length > 0 ? (
+        <BatchSummary
+          projectId={batchProject.id}
+          projectName={batchProject.name}
+          saved={saved.length}
+          skipped={skipped}
+          failed={failed}
+          indexing={indexing}
+          onRetry={retryFailed}
+          retrying={running}
+        />
+      ) : null}
+    </div>
   )
 }

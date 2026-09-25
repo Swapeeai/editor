@@ -1,5 +1,5 @@
 import { mediaTypeFromFile } from "@/lib/saved-media"
-import { MAX_UPLOAD_BYTES } from "@/lib/upload-limit"
+import { fileTooBigMessage, MAX_UPLOAD_BYTES } from "@/lib/upload-limit"
 
 export type DriveFileInfo = {
   id: string
@@ -53,7 +53,7 @@ export function planDriveImport(files: DriveFileInfo[]) {
     if (file.size > MAX_UPLOAD_BYTES) {
       skipped.push({
         name,
-        reason: "It is bigger than 50 MB, so it was not downloaded.",
+        reason: fileTooBigMessage("downloaded"),
       })
       continue
     }

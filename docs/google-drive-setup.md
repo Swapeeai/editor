@@ -136,10 +136,10 @@ If the button still says **Google Drive not connected yet — see setup guide**,
 2. Click **Import from Google Drive**.
 3. Sign in, click through the “not verified” screen as in step 5, and allow the Drive permission.
 4. The first tab is **Videos**. **Photos** is the second tab. You can select more than one file.
-5. The app checks each file’s size in Drive before it downloads it. A file over 50 MB is skipped and named in the summary. Nothing over 50 MB is downloaded.
+5. The app checks each file’s size in Drive before it downloads it. A file over the upload limit is skipped and named in the summary. Nothing over that limit is downloaded. The limit is 5 GB unless `NEXT_PUBLIC_MAX_UPLOAD_MB` is set lower. It must not be higher than the Supabase global file size limit (Storage settings).
 6. Imported files show up in the Media Library for that project.
 
-The free Supabase plan holds about 1 GB for all files together, and 50 MB for each file.
+If Supabase refuses a file for size, the page tells you to raise the global file size limit. It does not show Supabase’s raw error.
 
 If the Google window says the developer key is invalid, the app shows a short message instead of Google’s text. The fix is step 3: enable **Google Picker API**. You can also paste links, below.
 

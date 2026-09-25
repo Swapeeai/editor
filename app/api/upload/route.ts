@@ -3,7 +3,11 @@ import { isProjectId } from "@/lib/projects"
 import { mediaTypeFromFile, safeFileName, titleFromFileName } from "@/lib/saved-media"
 import { NOT_CONNECTED_MESSAGE } from "@/lib/supabase"
 import { getSupabaseAdmin, MEDIA_BUCKET } from "@/lib/supabase-admin"
-import { FILE_TOO_BIG_MESSAGE, MAX_UPLOAD_BYTES } from "@/lib/upload-limit"
+import {
+  FILE_TOO_BIG_MESSAGE,
+  MAX_UPLOAD_BYTES,
+  resumableUploadEndpoint,
+} from "@/lib/upload-limit"
 
 export const dynamic = "force-dynamic"
 
@@ -92,5 +96,7 @@ export async function POST(request: Request) {
     storagePath,
     mimeType: mimeType || null,
     signedUrl: signed.data.signedUrl,
+    token: signed.data.token,
+    resumableEndpoint: resumableUploadEndpoint(),
   })
 }

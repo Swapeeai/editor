@@ -29,7 +29,7 @@ If you change `.env.local`, stop the app and run `npm run dev` again.
 ## What you do
 
 1. Pick a project at the top.
-2. On Upload, choose **Import from Google Photos** or **Import from Google Drive**, or pick a file and **Save to library**.
+2. On Upload, choose many files or a folder, or import from Google Photos or Google Drive. The batch saves to the project under **Saving to**. Files over the upload limit are skipped. A failed file does not stop the rest. The limit is `NEXT_PUBLIC_MAX_UPLOAD_MB` in `.env.local` (5000, meaning 5 GB, when that line is missing). It must not be higher than the Supabase global file size limit.
 3. Open Media Library to see what was saved.
 4. On Create Video, type a direction with the word “then” between moments. Build the storyboard. Set **Start at second** if you want a different in-point. Choose **Export**, then download `retreat-video.mp4`.
 
@@ -61,7 +61,7 @@ Do these clicks once in [Google Cloud](https://console.cloud.google.com):
 2. **Google Auth platform → Data Access → Add or remove scopes**. Add `https://www.googleapis.com/auth/photospicker.mediaitems.readonly`. Click **Update**, then **Save**.
 3. In the app, click **Import from Google Photos** and sign in again. On the “not verified” screen, click **Advanced**, then **Go to Retreat Content Library (unsafe)**.
 
-A video that Google Photos is still processing is skipped. Each file must be 50 MB or smaller.
+A video that Google Photos is still processing is skipped. Each file must be within the upload limit (5 GB unless you set `NEXT_PUBLIC_MAX_UPLOAD_MB` lower).
 
 ## Export limits
 
@@ -69,8 +69,8 @@ A video that Google Photos is still processing is skipped. Each file must be 50 
 - When a moment was found, Export cuts that moment’s start and end, up to 30 seconds. Otherwise each video scene is 5 seconds from the start second you set. Photos become a 3 second still.
 - There is no sound.
 - A plain title card is added at the start with the title, date, and place. The letters are simple capitals.
-- Each source file must be 50 MB or smaller. The free Supabase plan holds about 1 GB in total.
-- If the finished MP4 is over 50 MB, you can still download it. It is not saved in the library.
+- Each source file must be within the upload limit (5 GB unless `NEXT_PUBLIC_MAX_UPLOAD_MB` is set lower). That number must not exceed the Supabase project's global file size limit.
+- If the finished MP4 is over the upload limit, you can still download it. It is not saved in the library.
 
 ## Supabase, once
 

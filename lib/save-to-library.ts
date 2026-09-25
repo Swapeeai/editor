@@ -1,4 +1,5 @@
-import { plainStorageError } from "@/lib/upload-limit"
+import { uploadFileResumable } from "@/lib/tus-upload"
+import { plainStorageError, RESUMABLE_AFTER_BYTES } from "@/lib/upload-limit"
 import type { SavedMedia } from "@/lib/saved-media"
 
 // Sends one file straight to Storage, then records the library row.
@@ -25,13 +26,28 @@ export async function saveFileToLibrary(
     id?: string
     storagePath?: string
     signedUrl?: string
+    token?: string
+    resumableEndpoint?: string | null
     title?: string
   }
   if (!preparedResponse.ok || !prepared.signedUrl || !prepared.id || !prepared.storagePath) {
     throw new Error(prepared.error || "Could not start the upload.")
   }
 
-  await putFile(prepared.signedUrl, file, onProgress)
+  if (file.size > RESUMABLE_AFTER_BYTES) {
+    if (!prepared.token || !prepared.resumableEndpoint) {
+      throw new Error("Could not start the large upload.")
+    }
+    await uploadFileResumable(
+      prepared.resumableEndpoint,
+      prepared.token,
+      prepared.storagePath,
+      file,
+      onProgress,
+    )
+  } else {
+    await putFile(prepared.signedUrl, file, onProgress)
+  }
 
   const finishedResponse = await fetch("/api/upload/complete", {
     method: "POST",

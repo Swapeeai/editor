@@ -16,6 +16,24 @@ import {
 } from "@/lib/twelvelabs"
 
 const advancing = new Map<string, Promise<AdvanceResult>>()
+const MAX_CONCURRENT_INDEX = 4
+let indexActive = 0
+const indexWaiters: Array<() => void> = []
+
+async function withIndexSlot<T>(work: () => Promise<T>) {
+  if (indexActive >= MAX_CONCURRENT_INDEX) {
+    await new Promise<void>((resolve) => {
+      indexWaiters.push(resolve)
+    })
+  }
+  indexActive += 1
+  try {
+    return await work()
+  } finally {
+    indexActive -= 1
+    indexWaiters.shift()?.()
+  }
+}
 
 export type AdvanceResult = "skipped" | "advanced" | "ready" | "failed" | "schema"
 
@@ -220,7 +238,7 @@ export function advanceMedia(id: string) {
   if (existing) {
     return existing
   }
-  const run = advanceBody(id).finally(() => {
+  const run = withIndexSlot(() => advanceBody(id)).finally(() => {
     advancing.delete(id)
   })
   advancing.set(id, run)

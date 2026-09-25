@@ -1,14 +1,18 @@
 "use client"
 
 import { useRef, useState } from "react"
+import { BatchSummary, FileQueue, savedDetail, type QueueItem } from "@/components/file-queue"
+import { useLeaveGuard } from "@/components/use-leave-guard"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { useProject } from "@/components/project-provider"
 import { parseDriveLinks } from "@/lib/drive-link"
 import { bytesFromDriveSize, planDriveImport } from "@/lib/drive-import-plan"
 import { getGoogleDriveConfig } from "@/lib/google-config"
+import { projectById, type ProjectId } from "@/lib/projects"
+import { runPool, UPLOAD_CONCURRENCY } from "@/lib/run-pool"
 import { saveFileToLibrary } from "@/lib/save-to-library"
-import { MAX_UPLOAD_BYTES } from "@/lib/upload-limit"
+import { fileTooBigMessage, MAX_UPLOAD_BYTES } from "@/lib/upload-limit"
 
 const VIDEO_MIMES = [
   "video/mp4",
@@ -32,14 +36,7 @@ const PHOTO_MIMES = [
 const PICKER_FIX =
   "Could not open Google Drive. Enable Google Picker API, then try again."
 
-type ImportState = "waiting" | "checking" | "downloading" | "saving" | "imported" | "skipped" | "failed"
-
-type ImportRow = {
-  id: string
-  name: string
-  state: ImportState
-  detail: string
-}
+type ImportRow = QueueItem
 
 type PickedDoc = {
   id?: string
@@ -235,88 +232,173 @@ export function DriveImport({ connected }: { connected: boolean }) {
   const google = getGoogleDriveConfig()
   const tokenClientRef = useRef<TokenClient | null>(null)
   const accessTokenRef = useRef<string | null>(null)
+  const rowsRef = useRef<ImportRow[]>([])
+  const docsRef = useRef(new Map<string, PickedDoc>())
+  const batchProjectRef = useRef<ProjectId>(project.id)
+  const [batchProjectId, setBatchProjectId] = useState<ProjectId>(project.id)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [rows, setRows] = useState<ImportRow[]>([])
-  const [summary, setSummary] = useState<string | null>(null)
+  const [showSummary, setShowSummary] = useState(false)
+  const [linkProblems, setLinkProblems] = useState<string[]>([])
   const [links, setLinks] = useState("")
   const [moreOptions, setMoreOptions] = useState(false)
 
+  useLeaveGuard(rows.some((row) => row.status === "uploading"))
+
+  function commit(next: ImportRow[]) {
+    rowsRef.current = next
+    setRows(next)
+  }
+
   function updateRow(id: string, patch: Partial<ImportRow>) {
-    setRows((current) => current.map((row) => (row.id === id ? { ...row, ...patch } : row)))
+    commit(rowsRef.current.map((row) => (row.id === id ? { ...row, ...patch } : row)))
+  }
+
+  function removeRow(id: string) {
+    const row = rowsRef.current.find((item) => item.id === id)
+    if (!row || row.status === "uploading") {
+      return
+    }
+    docsRef.current.delete(id)
+    commit(rowsRef.current.filter((item) => item.id !== id))
+  }
+
+  async function saveDriveFile(token: string, doc: PickedDoc, projectId: ProjectId, projectName: string) {
+    const id = doc.id || ""
+    const row = rowsRef.current.find((item) => item.id === id)
+    if (!id || !row || row.status !== "waiting") {
+      return
+    }
+    const driveReadonly = Boolean(google?.driveReadonly)
+    const fallbackName = doc.name?.trim() || "Untitled"
+    updateRow(id, { status: "uploading", percent: null, detail: "Checking size" })
+    try {
+      const meta = await driveMetadata(token, id, driveReadonly)
+      const name = meta.name?.trim() || fallbackName
+      const mimeType = meta.mimeType || doc.mimeType || ""
+      const size = bytesFromDriveSize(meta.size ?? doc.sizeBytes)
+      const plan = planDriveImport([{ id, name, mimeType, size }])
+      if (plan.skipped.length > 0) {
+        updateRow(id, {
+          name,
+          size,
+          status: "skipped",
+          percent: null,
+          detail: plan.skipped[0]?.reason ?? "Skipped",
+        })
+        return
+      }
+      const ready = plan.ready[0]
+      if (!ready) {
+        updateRow(id, { name, status: "skipped", detail: "Skipped" })
+        return
+      }
+      updateRow(id, { name, size: ready.size, detail: "Downloading from Google Drive" })
+      const file = await downloadDriveFile(token, id, ready.name, ready.mimeType, driveReadonly)
+      if (file.size > MAX_UPLOAD_BYTES) {
+        updateRow(id, {
+          name,
+          size: file.size,
+          status: "skipped",
+          percent: null,
+          detail: fileTooBigMessage("saved"),
+        })
+        return
+      }
+      updateRow(id, { size: file.size, detail: `Saving to ${projectName}` })
+      const saved = await saveFileToLibrary(file, projectId, (percent) => {
+        updateRow(id, {
+          percent,
+          detail: percent == null ? `Saving to ${projectName}` : `Uploading ${percent}%`,
+        })
+      })
+      updateRow(id, { status: "done", percent: 100, detail: savedDetail(saved) })
+    } catch (caught) {
+      updateRow(id, {
+        status: "failed",
+        percent: null,
+        detail: caught instanceof Error ? caught.message : "Could not import this file.",
+      })
+    }
   }
 
   async function importPicked(token: string, docs: PickedDoc[], extraProblems: string[] = []) {
+    docsRef.current = new Map()
+    const starting: ImportRow[] = docs.map((doc, index) => {
+      const id = doc.id || `missing-${index}`
+      if (doc.id) {
+        docsRef.current.set(doc.id, doc)
+      }
+      const knownSize = bytesFromDriveSize(doc.sizeBytes)
+      if (!doc.id) {
+        return {
+          id,
+          name: doc.name?.trim() || "Untitled",
+          size: knownSize,
+          status: "failed" as const,
+          percent: null,
+          detail: "Google did not give an id.",
+        }
+      }
+      return {
+        id,
+        name: doc.name?.trim() || "Untitled",
+        size: knownSize,
+        status: "waiting" as const,
+        percent: null,
+        detail: "Waiting",
+      }
+    })
+    commit(starting)
+    setShowSummary(false)
+    setLinkProblems(extraProblems)
     const projectId = project.id
-    const driveReadonly = Boolean(google?.driveReadonly)
-    const starting: ImportRow[] = docs.map((doc, index) => ({
-      id: doc.id || `missing-${index}`,
-      name: doc.name?.trim() || "Untitled",
-      state: "waiting",
-      detail: "Waiting",
-    }))
-    setRows(starting)
-    setSummary(null)
-
-    let imported = 0
-    let skipped = 0
-    let failed = 0
-    const skippedLines: string[] = []
-
-    for (const doc of docs) {
-      const id = doc.id || ""
-      const fallbackName = doc.name?.trim() || "Untitled"
-      if (!id) {
-        failed += 1
-        continue
-      }
-      updateRow(id, { state: "checking", detail: "Checking size" })
-      try {
-        const meta = await driveMetadata(token, id, driveReadonly)
-        const name = meta.name?.trim() || fallbackName
-        const mimeType = meta.mimeType || doc.mimeType || ""
-        const size = bytesFromDriveSize(meta.size ?? doc.sizeBytes)
-        const plan = planDriveImport([{ id, name, mimeType, size }])
-        if (plan.skipped.length > 0) {
-          skipped += 1
-          const reason = plan.skipped[0]?.reason ?? "Skipped"
-          skippedLines.push(`${name}: ${reason}`)
-          updateRow(id, { name, state: "skipped", detail: reason })
-          continue
+    const projectName = project.name
+    batchProjectRef.current = projectId
+    setBatchProjectId(projectId)
+    await runPool(
+      starting.filter((row) => row.status === "waiting").map((row) => row.id),
+      UPLOAD_CONCURRENCY,
+      async (id) => {
+        const doc = docsRef.current.get(id)
+        if (!doc) {
+          return
         }
-        const ready = plan.ready[0]
-        if (!ready || ready.size > MAX_UPLOAD_BYTES) {
-          skipped += 1
-          const reason = "It is bigger than 50 MB, so it was not downloaded."
-          skippedLines.push(`${name}: ${reason}`)
-          updateRow(id, { name, state: "skipped", detail: reason })
-          continue
-        }
+        await saveDriveFile(token, doc, projectId, projectName)
+      },
+    )
+    setShowSummary(true)
+  }
 
-        updateRow(id, { name, state: "downloading", detail: "Downloading from Google Drive" })
-        const file = await downloadDriveFile(token, id, ready.name, ready.mimeType, driveReadonly)
-        if (file.size > MAX_UPLOAD_BYTES) {
-          skipped += 1
-          const reason = "It is bigger than 50 MB, so it was not saved."
-          skippedLines.push(`${name}: ${reason}`)
-          updateRow(id, { name, state: "skipped", detail: reason })
-          continue
-        }
-
-        updateRow(id, { state: "saving", detail: `Saving to ${project.name}` })
-        const saved = await saveFileToLibrary(file, projectId)
-        imported += 1
-        updateRow(id, { state: "imported", detail: `Saved as “${saved.title}”` })
-      } catch (caught) {
-        failed += 1
-        const message = caught instanceof Error ? caught.message : "Could not import this file."
-        updateRow(id, { state: "failed", detail: message })
-      }
+  function retryFailed() {
+    const token = accessTokenRef.current
+    const ids = rowsRef.current.filter((row) => row.status === "failed").map((row) => row.id)
+    if (!token || ids.length === 0) {
+      return
     }
-
-    const skippedText = skippedLines.length > 0 ? ` Skipped: ${skippedLines.join(" ")}` : ""
-    const problemText = extraProblems.length > 0 ? ` ${extraProblems.join(" ")}` : ""
-    setSummary(`Imported ${imported}. Skipped ${skipped}. Failed ${failed}.${skippedText}${problemText}`)
+    commit(
+      rowsRef.current.map((row) =>
+        row.status === "failed"
+          ? { ...row, status: "waiting" as const, percent: null, detail: "Waiting" }
+          : row,
+      ),
+    )
+    setBusy(true)
+    setShowSummary(false)
+    const projectId = batchProjectRef.current
+    const projectName = projectById(projectId).name
+    void runPool(ids, UPLOAD_CONCURRENCY, async (id) => {
+      const doc = docsRef.current.get(id)
+      if (!doc) {
+        updateRow(id, { status: "failed", detail: "That file is no longer available. Choose it again." })
+        return
+      }
+      await saveDriveFile(token, doc, projectId, projectName)
+    }).finally(() => {
+      setBusy(false)
+      setShowSummary(true)
+    })
   }
 
   function showPickerFailure() {
@@ -423,7 +505,7 @@ export function DriveImport({ connected }: { connected: boolean }) {
 
     setBusy(true)
     setError(null)
-    setSummary(null)
+    setShowSummary(false)
 
     try {
       await loadGoogle()
@@ -464,7 +546,7 @@ export function DriveImport({ connected }: { connected: boolean }) {
   function startLinkImport() {
     const parsed = parseDriveLinks(links)
     if (parsed.files.length === 0) {
-      setSummary(null)
+      setShowSummary(false)
       setError(
         parsed.problems[0] ?? "Paste a Google Drive file link. One link per line.",
       )
@@ -484,9 +566,10 @@ export function DriveImport({ connected }: { connected: boolean }) {
       <Button type="button" onClick={startImport} disabled={!google || busy || !connected}>
         {busy ? "Working…" : "Import from Google Drive"}
       </Button>
+      <p className="text-sm font-medium">Saving to: {project.name}</p>
       <p className="text-sm text-muted-foreground">
         {google
-          ? `Copies files you pick into ${project.name}.`
+          ? "Copies the files you pick. Several save at once."
           : "Add the Google Client ID and project number, then restart."}
       </p>
       {error ? (
@@ -532,20 +615,23 @@ export function DriveImport({ connected }: { connected: boolean }) {
         </div>
       ) : null}
 
-      {rows.length > 0 ? (
-        <ul className="flex flex-col gap-1 text-sm" aria-live="polite">
-          {rows.map((row) => (
-            <li key={row.id}>
-              <span className="font-medium">{row.name}</span>
-              <span className="text-muted-foreground"> — {row.detail}</span>
-            </li>
-          ))}
-        </ul>
+      <FileQueue items={rows} onRemove={removeRow} />
+      {linkProblems.length > 0 ? (
+        <p className="text-sm text-muted-foreground">{linkProblems.join(" ")}</p>
       ) : null}
-      {summary ? (
-        <p className="text-sm font-medium" role="status">
-          {summary}
-        </p>
+      {showSummary && rows.length > 0 ? (
+        <BatchSummary
+          projectId={batchProjectId}
+          projectName={projectById(batchProjectId).name}
+          saved={rows.filter((row) => row.status === "done").length}
+          skipped={rows
+            .filter((row) => row.status === "skipped")
+            .map((row) => ({ name: row.name, detail: row.detail }))}
+          failed={rows.filter((row) => row.status === "failed").length}
+          indexing={rows.filter((row) => row.status === "done" && row.detail.includes("Indexing")).length}
+          onRetry={retryFailed}
+          retrying={busy}
+        />
       ) : null}
     </div>
   )

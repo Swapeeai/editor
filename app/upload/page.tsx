@@ -2,6 +2,7 @@ import { DriveImport } from "@/components/drive-import"
 import { PhotosImport } from "@/components/photos-import"
 import { UploadForm } from "@/components/upload-form"
 import { isSupabaseConfigured } from "@/lib/supabase-admin"
+import { formatUploadLimit } from "@/lib/upload-limit"
 
 export const metadata = {
   title: "Upload · Retreat Content Library",
@@ -16,7 +17,7 @@ export default function UploadPage() {
         <h1 className="text-3xl font-semibold tracking-tight">Upload</h1>
         <p className="text-base leading-7 text-muted-foreground">
           {connected
-            ? "Files go to the project at the top. Each file can be 50 MB. The free plan holds about 1 GB. Use http://localhost:43123."
+            ? `Choose many files or drop a folder. They all save to the project under Saving to. Each file can be ${formatUploadLimit()}. If Supabase refuses a file, raise the global file size limit in Storage settings. Use http://localhost:43123.`
             : "Supabase is not connected, so nothing is saved yet."}
         </p>
       </div>

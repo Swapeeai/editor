@@ -1,15 +1,60 @@
-// Supabase Free plan: 50 MB per file, about 1 GB for every file together.
-// https://supabase.com/docs/guides/storage/uploads/file-limits
-// The Next.js server used to read the whole file, and it only keeps the first
-// 10 MB of a request. The browser now uploads straight to Storage instead.
+// NEXT_PUBLIC_MAX_UPLOAD_MB is the largest file this app will try to upload.
+// It defaults to 5000 (5 GB). It must not be higher than the Supabase project's
+// global file size limit (Storage settings). The browser uploads straight to
+// Storage. Files over 6 MB use resumable upload, which Supabase recommends
+// above that size. Standard uploads can reach 5 GB; resumable can go higher
+// when the project limit allows it.
+// https://supabase.com/docs/guides/storage/uploads/resumable-uploads
 
-export const MAX_UPLOAD_BYTES = 50 * 1024 * 1024
+const DEFAULT_MAX_UPLOAD_MB = 5000
 
-export const FILE_TOO_BIG_MESSAGE =
-  "This file is bigger than 50 MB, so it was not saved."
+function readMaxUploadMb() {
+  const raw = process.env.NEXT_PUBLIC_MAX_UPLOAD_MB?.trim() ?? ""
+  if (!raw) {
+    return DEFAULT_MAX_UPLOAD_MB
+  }
+  const parsed = Number(raw)
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return DEFAULT_MAX_UPLOAD_MB
+  }
+  return parsed
+}
+
+export const MAX_UPLOAD_MB = readMaxUploadMb()
+
+export const MAX_UPLOAD_BYTES = Math.floor(MAX_UPLOAD_MB * 1024 * 1024)
+
+/** Supabase recommends resumable (TUS) uploads above 6 MB. */
+export const RESUMABLE_AFTER_BYTES = 6 * 1024 * 1024
+
+export const TUS_CHUNK_BYTES = 6 * 1024 * 1024
+
+export function formatUploadLimit(mb = MAX_UPLOAD_MB) {
+  if (mb >= 1000 && mb % 1000 === 0) {
+    const gb = mb / 1000
+    return gb === 1 ? "1 GB" : `${gb} GB`
+  }
+  if (Number.isInteger(mb)) {
+    return `${mb} MB`
+  }
+  return `${mb} MB`
+}
+
+export function fileTooBigMessage(kind: "saved" | "downloaded" = "saved") {
+  const limit = formatUploadLimit()
+  if (kind === "downloaded") {
+    return `It is bigger than ${limit}, so it was not downloaded.`
+  }
+  return `This file is bigger than ${limit}, so it was not saved.`
+}
+
+export const FILE_TOO_BIG_MESSAGE = fileTooBigMessage("saved")
+
+export const PROJECT_FILE_LIMIT_MESSAGE =
+  "This file is bigger than this Supabase project allows. In the Supabase dashboard, open Storage settings and raise the global file size limit, then try again."
 
 export const STORAGE_FULL_MESSAGE =
-  "Supabase storage is full. The free plan holds about 1 GB for all files together. Delete some files in Storage, or move to a paid plan."
+  "Supabase storage is full. Delete some files in Storage, or raise the storage quota on your plan."
 
 export function plainStorageError(status: number, details: string) {
   const text = details.toLowerCase()
@@ -19,9 +64,11 @@ export function plainStorageError(status: number, details: string) {
     text.includes("exceeded the maximum") ||
     text.includes("entity too large") ||
     text.includes("payload too large") ||
+    text.includes("file size limit") ||
+    text.includes("maximum size") ||
     text.includes("too large")
   ) {
-    return FILE_TOO_BIG_MESSAGE
+    return PROJECT_FILE_LIMIT_MESSAGE
   }
   if (
     text.includes("quota") ||
@@ -31,4 +78,21 @@ export function plainStorageError(status: number, details: string) {
     return STORAGE_FULL_MESSAGE
   }
   return null
+}
+
+export function resumableUploadEndpoint() {
+  const raw = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() ?? ""
+  if (!raw) {
+    return null
+  }
+  try {
+    const url = new URL(raw)
+    const ref = url.hostname.split(".")[0]
+    if (!ref) {
+      return null
+    }
+    return `https://${ref}.storage.supabase.co/storage/v1/upload/resumable/sign`
+  } catch {
+    return null
+  }
 }

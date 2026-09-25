@@ -2,6 +2,8 @@
 
 import { useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
+import { BatchSummary, FileQueue, savedDetail, type QueueItem } from "@/components/file-queue"
+import { useLeaveGuard } from "@/components/use-leave-guard"
 import { useProject } from "@/components/project-provider"
 import {
   PHOTOS_API,
@@ -14,17 +16,12 @@ import {
   withAutoclose,
   type PhotosMediaItem,
 } from "@/lib/photos-picker"
+import { runPool, UPLOAD_CONCURRENCY } from "@/lib/run-pool"
 import { saveFileToLibrary } from "@/lib/save-to-library"
-import { MAX_UPLOAD_BYTES } from "@/lib/upload-limit"
+import { fileTooBigMessage, MAX_UPLOAD_BYTES } from "@/lib/upload-limit"
+import { projectById, type ProjectId } from "@/lib/projects"
 
-type ImportState = "waiting" | "checking" | "downloading" | "saving" | "imported" | "skipped" | "failed"
-
-type ImportRow = {
-  id: string
-  name: string
-  state: ImportState
-  detail: string
-}
+type ImportRow = QueueItem
 
 type TokenClient = {
   callback: (response: { error?: string; access_token?: string }) => void
@@ -141,88 +138,140 @@ export function PhotosImport({ connected }: { connected: boolean }) {
   const tokenClientRef = useRef<TokenClient | null>(null)
   const accessTokenRef = useRef<string | null>(null)
   const cancelRef = useRef(false)
+  const rowsRef = useRef<ImportRow[]>([])
+  const itemsRef = useRef(new Map<string, PhotosMediaItem>())
+  const batchProjectRef = useRef<ProjectId>(project.id)
+  const [batchProjectId, setBatchProjectId] = useState<ProjectId>(project.id)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [status, setStatus] = useState<string | null>(null)
   const [pickerLink, setPickerLink] = useState<string | null>(null)
   const [rows, setRows] = useState<ImportRow[]>([])
-  const [summary, setSummary] = useState<string | null>(null)
+  const [showSummary, setShowSummary] = useState(false)
+
+  useLeaveGuard(rows.some((row) => row.status === "uploading"))
+
+  function commit(next: ImportRow[]) {
+    rowsRef.current = next
+    setRows(next)
+  }
 
   function updateRow(rowId: string, patch: Partial<ImportRow>) {
-    setRows((current) => current.map((row) => (row.id === rowId ? { ...row, ...patch } : row)))
+    commit(rowsRef.current.map((row) => (row.id === rowId ? { ...row, ...patch } : row)))
+  }
+
+  function removeRow(id: string) {
+    const row = rowsRef.current.find((item) => item.id === id)
+    if (!row || row.status === "uploading") {
+      return
+    }
+    commit(rowsRef.current.filter((item) => item.id !== id))
+  }
+
+  async function savePhoto(token: string, item: PhotosMediaItem, projectId: ProjectId, projectName: string) {
+    const rowId = item.id || ""
+    const name = item.mediaFile?.filename?.trim() || "Google Photos item"
+    const row = rowsRef.current.find((entry) => entry.id === rowId)
+    if (!rowId || !row || row.status !== "waiting") {
+      return
+    }
+    if (cancelRef.current) {
+      updateRow(rowId, { status: "skipped", detail: "Cancelled" })
+      return
+    }
+    const url = photosContentUrl(item)
+    if (!url) {
+      updateRow(rowId, { status: "failed", detail: "Google did not give a download link." })
+      return
+    }
+    updateRow(rowId, { status: "uploading", percent: null, detail: "Downloading from Google Photos" })
+    try {
+      const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+      if (!response.ok) {
+        throw new Error(await readGoogleError(response))
+      }
+      const lengthHeader = Number(response.headers.get("content-length"))
+      if (Number.isFinite(lengthHeader) && lengthHeader > MAX_UPLOAD_BYTES) {
+        await response.body?.cancel()
+        updateRow(rowId, {
+          status: "skipped",
+          size: lengthHeader,
+          detail: fileTooBigMessage("downloaded"),
+        })
+        return
+      }
+      const downloaded = await readUpTo(response, MAX_UPLOAD_BYTES)
+      if (downloaded.tooBig) {
+        updateRow(rowId, {
+          status: "skipped",
+          detail: fileTooBigMessage("saved"),
+        })
+        return
+      }
+      const mimeType = item.mediaFile?.mimeType || downloaded.type || "application/octet-stream"
+      const file = new File([downloaded.bytes], name, { type: mimeType })
+      updateRow(rowId, { size: file.size, detail: `Saving to ${projectName}` })
+      const saved = await saveFileToLibrary(file, projectId, (percent) => {
+        updateRow(rowId, {
+          percent,
+          detail: percent == null ? `Saving to ${projectName}` : `Uploading ${percent}%`,
+        })
+      })
+      updateRow(rowId, { status: "done", percent: 100, detail: savedDetail(saved) })
+    } catch (caught) {
+      updateRow(rowId, {
+        status: "failed",
+        percent: null,
+        detail: caught instanceof Error ? caught.message : "Could not import this file.",
+      })
+    }
   }
 
   async function importItems(token: string, items: PhotosMediaItem[]) {
-    const starting: ImportRow[] = items.map((item, index) => ({
-      id: item.id || `photo-${index}`,
-      name: item.mediaFile?.filename?.trim() || "Google Photos item",
-      state: "waiting",
-      detail: "Waiting",
-    }))
-    setRows(starting)
-    let imported = 0
-    let skipped = 0
-    let failed = 0
-    const skippedLines: string[] = []
-
-    for (const item of items) {
-      const rowId = item.id || ""
+    itemsRef.current = new Map()
+    const starting: ImportRow[] = items.map((item, index) => {
+      const id = item.id || `photo-${index}`
       const name = item.mediaFile?.filename?.trim() || "Google Photos item"
-      if (!rowId) {
-        failed += 1
-        continue
+      if (item.id) {
+        itemsRef.current.set(id, item)
       }
-      const notReady = videoSkipReason(item)
+      const notReady = item.id ? videoSkipReason(item) : null
+      if (!item.id) {
+        return { id, name, size: null, status: "failed" as const, percent: null, detail: "Google did not give an id." }
+      }
       if (notReady) {
-        skipped += 1
-        skippedLines.push(`${name}: ${notReady}`)
-        updateRow(rowId, { name, state: "skipped", detail: notReady })
-        continue
+        return { id, name, size: null, status: "skipped" as const, percent: null, detail: notReady }
       }
-      const url = photosContentUrl(item)
-      if (!url) {
-        failed += 1
-        updateRow(rowId, { name, state: "failed", detail: "Google did not give a download link." })
-        continue
+      if (!photosContentUrl(item)) {
+        return {
+          id,
+          name,
+          size: null,
+          status: "failed" as const,
+          percent: null,
+          detail: "Google did not give a download link.",
+        }
       }
-      updateRow(rowId, { name, state: "downloading", detail: "Downloading from Google Photos" })
-      try {
-        const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
-        if (!response.ok) {
-          throw new Error(await readGoogleError(response))
+      return { id, name, size: null, status: "waiting" as const, percent: null, detail: "Waiting" }
+    })
+    commit(starting)
+    setShowSummary(false)
+    const projectId = project.id
+    const projectName = project.name
+    batchProjectRef.current = projectId
+    setBatchProjectId(projectId)
+    await runPool(
+      starting.filter((row) => row.status === "waiting").map((row) => row.id),
+      UPLOAD_CONCURRENCY,
+      async (id) => {
+        const item = itemsRef.current.get(id)
+        if (!item) {
+          return
         }
-        const lengthHeader = Number(response.headers.get("content-length"))
-        if (Number.isFinite(lengthHeader) && lengthHeader > MAX_UPLOAD_BYTES) {
-          await response.body?.cancel()
-          skipped += 1
-          const reason = "It is bigger than 50 MB, so it was not downloaded."
-          skippedLines.push(`${name}: ${reason}`)
-          updateRow(rowId, { name, state: "skipped", detail: reason })
-          continue
-        }
-        const downloaded = await readUpTo(response, MAX_UPLOAD_BYTES)
-        if (downloaded.tooBig) {
-          skipped += 1
-          const reason = "It is bigger than 50 MB, so it was not saved."
-          skippedLines.push(`${name}: ${reason}`)
-          updateRow(rowId, { name, state: "skipped", detail: reason })
-          continue
-        }
-        const mimeType = item.mediaFile?.mimeType || downloaded.type || "application/octet-stream"
-        const file = new File([downloaded.bytes], name, { type: mimeType })
-        updateRow(rowId, { state: "saving", detail: `Saving to ${project.name}` })
-        const saved = await saveFileToLibrary(file, project.id)
-        imported += 1
-        updateRow(rowId, { state: "imported", detail: `Saved as “${saved.title}”` })
-      } catch (caught) {
-        failed += 1
-        const message = caught instanceof Error ? caught.message : "Could not import this file."
-        updateRow(rowId, { state: "failed", detail: message })
-      }
-    }
-
-    const skippedText = skippedLines.length > 0 ? ` Skipped: ${skippedLines.join(" ")}` : ""
-    setSummary(`Imported ${imported}. Skipped ${skipped}. Failed ${failed}.${skippedText}`)
+        await savePhoto(token, item, projectId, projectName)
+      },
+    )
+    setShowSummary(true)
   }
 
   async function runSession(token: string) {
@@ -296,7 +345,8 @@ export function PhotosImport({ connected }: { connected: boolean }) {
       } while (pageToken)
 
       if (items.length === 0) {
-        setSummary("You did not choose any files.")
+        setShowSummary(false)
+        setError("You did not choose any files.")
         return
       }
       await importItems(token, items)
@@ -318,8 +368,8 @@ export function PhotosImport({ connected }: { connected: boolean }) {
     cancelRef.current = false
     setBusy(true)
     setError(null)
-    setSummary(null)
-    setRows([])
+    setShowSummary(false)
+    commit([])
     setPickerLink(null)
     setStatus(null)
 
@@ -375,6 +425,36 @@ export function PhotosImport({ connected }: { connected: boolean }) {
     })()
   }
 
+  function retryFailed() {
+    const token = accessTokenRef.current
+    const ids = rowsRef.current.filter((row) => row.status === "failed").map((row) => row.id)
+    if (!token || ids.length === 0) {
+      return
+    }
+    commit(
+      rowsRef.current.map((row) =>
+        row.status === "failed"
+          ? { ...row, status: "waiting" as const, percent: null, detail: "Waiting" }
+          : row,
+      ),
+    )
+    setBusy(true)
+    setShowSummary(false)
+    const projectId = batchProjectRef.current
+    const projectName = projectById(projectId).name
+    void runPool(ids, UPLOAD_CONCURRENCY, async (id) => {
+      const item = itemsRef.current.get(id)
+      if (!item) {
+        updateRow(id, { status: "failed", detail: "That file is no longer available. Choose it again." })
+        return
+      }
+      await savePhoto(token, item, projectId, projectName)
+    }).finally(() => {
+      setBusy(false)
+      setShowSummary(true)
+    })
+  }
+
   function cancelImport() {
     cancelRef.current = true
     setBusy(false)
@@ -389,9 +469,10 @@ export function PhotosImport({ connected }: { connected: boolean }) {
       <Button type="button" onClick={startImport} disabled={!id || busy || !connected}>
         {busy ? "Working…" : "Import from Google Photos"}
       </Button>
+      <p className="text-sm font-medium">Saving to: {project.name}</p>
       <p className="text-sm text-muted-foreground">
         {id
-          ? `Copies photos and videos you pick into ${project.name}.`
+          ? "Copies the photos and videos you pick. Several save at once."
           : "Add the Google Client ID, then restart."}
       </p>
       {busy ? (
@@ -422,20 +503,20 @@ export function PhotosImport({ connected }: { connected: boolean }) {
           {error}
         </p>
       ) : null}
-      {rows.length > 0 ? (
-        <ul className="flex flex-col gap-1 text-sm" aria-live="polite">
-          {rows.map((row) => (
-            <li key={row.id}>
-              <span className="font-medium">{row.name}</span>
-              <span className="text-muted-foreground"> — {row.detail}</span>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-      {summary ? (
-        <p className="text-sm font-medium" role="status">
-          {summary}
-        </p>
+      <FileQueue items={rows} onRemove={removeRow} />
+      {showSummary && rows.length > 0 ? (
+        <BatchSummary
+          projectId={batchProjectId}
+          projectName={projectById(batchProjectId).name}
+          saved={rows.filter((row) => row.status === "done").length}
+          skipped={rows
+            .filter((row) => row.status === "skipped")
+            .map((row) => ({ name: row.name, detail: row.detail }))}
+          failed={rows.filter((row) => row.status === "failed").length}
+          indexing={rows.filter((row) => row.status === "done" && row.detail.includes("Indexing")).length}
+          onRetry={retryFailed}
+          retrying={busy}
+        />
       ) : null}
     </div>
   )

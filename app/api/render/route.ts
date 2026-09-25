@@ -9,7 +9,7 @@ import { NOT_CONNECTED_MESSAGE } from "@/lib/supabase"
 import { getSupabaseAdmin, MEDIA_BUCKET } from "@/lib/supabase-admin"
 import { clipDuration } from "@/lib/moment-timing"
 import { titleCardPng } from "@/lib/title-card"
-import { MAX_UPLOAD_BYTES } from "@/lib/upload-limit"
+import { formatUploadLimit, MAX_UPLOAD_BYTES } from "@/lib/upload-limit"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 300
@@ -248,7 +248,7 @@ export async function POST(request: Request) {
       if (bytes.length > MAX_UPLOAD_BYTES) {
         return NextResponse.json(
           {
-            error: `“${row.title}” is bigger than 50 MB. The free plan cannot use it. Pick a shorter clip.`,
+            error: `“${row.title}” is bigger than ${formatUploadLimit()}. Pick a shorter clip.`,
           },
           { status: 413 },
         )
@@ -329,7 +329,7 @@ export async function POST(request: Request) {
       }
     } else {
       notes.push(
-        "The finished video is over 50 MB, so it was not saved in the library. Download it from this page.",
+        `The finished video is over ${formatUploadLimit()}, so it was not saved in the library. Download it from this page.`,
       )
     }
 
