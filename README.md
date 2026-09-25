@@ -8,6 +8,8 @@ Pick a project, import videos from Google Photos or Google Drive (or upload a fi
 
 Install Node.js LTS first, from [https://nodejs.org](https://nodejs.org). On Windows, use the LTS installer and click Next. Open a new terminal afterwards.
 
+Install Git as well, from [https://git-scm.com/download/win](https://git-scm.com/download/win). Click through the installer. If PowerShell says `git` is not recognised, the install is missing or the terminal was opened before it finished. Close the terminal, open a new one, and try `git` again.
+
 In this folder:
 
 ```bash
@@ -26,7 +28,18 @@ Then open [http://localhost:43123](http://localhost:43123). Use that address. Go
 
 If you change `.env.local`, stop the app and run `npm run dev` again.
 
-To install a newer build, stop the app with Ctrl+C, then run `update-app.ps1 -Url` with the download link from the latest release. That downloads the zip, keeps `.env.local` and `node_modules`, and deletes `.next` so the old Upload page cannot stay on screen. Do not reuse an older zip from Downloads.
+## Updates
+
+Stop the app with Ctrl+C. In this folder, the update is:
+
+```powershell
+git pull
+npm run dev
+```
+
+Run `npm install` again only when `git pull` changes `package.json`. Do not delete `.env.local`.
+
+`update-app.ps1` is a backup for a download link. Day to day, use `git pull`.
 
 ## What you do
 
