@@ -1,12 +1,11 @@
 "use client"
 
-import { useRef, useState, type ChangeEvent, type DragEvent } from "react"
-import { Button, buttonVariants } from "@/components/ui/button"
+import { useEffect, useRef, useState, type ChangeEvent } from "react"
+import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { BatchSummary, FileQueue, savedDetail, type QueueItem } from "@/components/file-queue"
 import { useLeaveGuard } from "@/components/use-leave-guard"
 import { useProject } from "@/components/project-provider"
-import { filesFromDataTransfer } from "@/lib/collect-dropped-files"
 import { projects, type ProjectId } from "@/lib/projects"
 import { runPool, UPLOAD_CONCURRENCY } from "@/lib/run-pool"
 import { saveFileToLibrary } from "@/lib/save-to-library"
@@ -62,14 +61,27 @@ export function UploadForm({ connected }: { connected: boolean }) {
   const runningRef = useRef(false)
   const batchProjectRef = useRef<ProjectId>(project.id)
   const [batchProjectId, setBatchProjectId] = useState<ProjectId>(project.id)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [rows, setRows] = useState<QueueItem[]>([])
   const [running, setRunning] = useState(false)
   const [finished, setFinished] = useState(false)
-  const [dragging, setDragging] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [inputKey, setInputKey] = useState(0)
 
   useLeaveGuard(running)
+
+  useEffect(() => {
+    const stop = (event: Event) => {
+      event.preventDefault()
+      event.stopPropagation()
+    }
+    window.addEventListener("dragover", stop)
+    window.addEventListener("drop", stop)
+    return () => {
+      window.removeEventListener("dragover", stop)
+      window.removeEventListener("drop", stop)
+    }
+  }, [])
 
   function commit(next: QueueItem[]) {
     rowsRef.current = next
@@ -82,7 +94,7 @@ export function UploadForm({ connected }: { connected: boolean }) {
 
   function addFiles(files: File[]) {
     if (files.length === 0) {
-      setError("That drop did not contain any files.")
+      setError("Choose at least one video.")
       return
     }
     const nextRows = files.map((file) => {
@@ -102,16 +114,6 @@ export function UploadForm({ connected }: { connected: boolean }) {
       return
     }
     addFiles(Array.from(list))
-  }
-
-  async function onDrop(event: DragEvent<HTMLDivElement>) {
-    event.preventDefault()
-    setDragging(false)
-    try {
-      addFiles(await filesFromDataTransfer(event.dataTransfer))
-    } catch {
-      setError("Could not read that drop. Choose the files with the button instead.")
-    }
   }
 
   function removeRow(id: string) {
@@ -234,60 +236,35 @@ export function UploadForm({ connected }: { connected: boolean }) {
         </div>
       </fieldset>
 
-      <div
-        className={cn(
-          "flex flex-col gap-3 rounded-lg border border-dashed p-4",
-          dragging && "border-primary bg-primary/5",
-        )}
-        onDragOver={(event) => {
-          event.preventDefault()
-          setDragging(true)
-        }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={(event) => void onDrop(event)}
-      >
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <label
-            htmlFor="media-file"
-            className={cn(buttonVariants({ size: "lg" }), "h-10 w-fit cursor-pointer px-4")}
-          >
-            Choose files from this computer
-          </label>
-          <label
-            htmlFor="media-folder"
-            className={cn(buttonVariants({ variant: "outline", size: "lg" }), "h-10 w-fit cursor-pointer px-4")}
-          >
-            Choose a folder
-          </label>
-        </div>
+      <div className="flex flex-col gap-3">
+        <Button
+          type="button"
+          size="lg"
+          className="h-12 w-full text-base sm:w-fit sm:px-8"
+          onClick={() => fileInputRef.current?.click()}
+        >
+          Choose videos
+        </Button>
         <input
-          key={`files-${inputKey}`}
+          key={inputKey}
+          ref={fileInputRef}
           id="media-file"
           type="file"
           multiple
-          accept="image/*,video/*"
+          accept="video/*,image/*"
           onChange={onFileChange}
           className="sr-only"
         />
-        <input
-          key={`folder-${inputKey}`}
-          id="media-folder"
-          type="file"
-          multiple
-          accept="image/*,video/*"
-          // React's type list does not include the folder attribute.
-          {...{ webkitdirectory: "", directory: "" }}
-          onChange={onFileChange}
-          className="sr-only"
-        />
+        <p className="text-base">
+          Click Choose videos. Hold Ctrl (or Shift) to select many. Then Save.
+        </p>
         <p className="text-sm text-muted-foreground">
-          Or drop files or a folder here. Every file in this batch saves to {project.name}.
-          Titles use the file name. Files over {formatUploadLimit()} are skipped.
+          Each file can be {formatUploadLimit()}. They all save to {project.name}.
         </p>
       </div>
 
-      <Button type="button" onClick={startUpload} disabled={!connected || running || waiting === 0}>
-        {running ? "Uploading…" : `Upload ${waiting} to ${project.name}`}
+      <Button type="button" size="lg" onClick={startUpload} disabled={!connected || running || waiting === 0}>
+        {running ? "Saving…" : "Save"}
       </Button>
 
       {running ? (

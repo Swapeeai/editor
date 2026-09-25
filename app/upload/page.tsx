@@ -17,7 +17,7 @@ export default function UploadPage() {
         <h1 className="text-3xl font-semibold tracking-tight">Upload</h1>
         <p className="text-base leading-7 text-muted-foreground">
           {connected
-            ? `Choose many files or drop a folder. They all save to the project under Saving to. Each file can be ${formatUploadLimit()}. If Supabase refuses a file, raise the global file size limit in Storage settings. Use http://localhost:43123.`
+            ? `Click Choose videos. Hold Ctrl (or Shift) to select many. Then Save. Each file can be ${formatUploadLimit()}.`
             : "Supabase is not connected, so nothing is saved yet."}
         </p>
       </div>

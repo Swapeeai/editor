@@ -29,7 +29,7 @@ If you change `.env.local`, stop the app and run `npm run dev` again.
 ## What you do
 
 1. Pick a project at the top.
-2. On Upload, choose many files or a folder, or import from Google Photos or Google Drive. The batch saves to the project under **Saving to**. Files over the upload limit are skipped. A failed file does not stop the rest. The limit is `NEXT_PUBLIC_MAX_UPLOAD_MB` in `.env.local` (5000, meaning 5 GB, when that line is missing). It must not be higher than the Supabase global file size limit.
+2. On Upload, click **Choose videos**. Hold Ctrl (or Shift) to select many, then **Save**. The batch saves to the project under **Saving to**. Files over the upload limit are skipped. A failed file does not stop the rest. The limit is `NEXT_PUBLIC_MAX_UPLOAD_MB` in `.env.local` (5000, meaning 5 GB, when that line is missing). It must not be higher than the Supabase global file size limit. You can also import from Google Photos or Google Drive.
 3. Open Media Library to see what was saved.
 4. On Create Video, type a direction with the word “then” between moments. Build the storyboard. Set **Start at second** if you want a different in-point. Choose **Export**, then download `retreat-video.mp4`.
 
