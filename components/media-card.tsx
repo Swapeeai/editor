@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { CutClip } from "@/components/cut-clip"
 import { ReviewMoments } from "@/components/review-moments"
 import { Button } from "@/components/ui/button"
@@ -16,12 +16,20 @@ export function MediaCard({
   selected = false,
   onToggle,
   parts = [],
+  focusTitle = false,
+  onTabNext,
+  highlighted = false,
+  onShowInLibrary,
 }: {
   item: SampleMedia
   onChanged?: () => void
   selected?: boolean
   onToggle?: () => void
   parts?: SampleMedia[]
+  focusTitle?: boolean
+  onTabNext?: () => void
+  highlighted?: boolean
+  onShowInLibrary?: (id: string) => void
 }) {
   const kind = item.mediaType === "video" ? "Video" : "Photo"
   const playbackUrl = item.playbackUrl ?? null
@@ -29,14 +37,24 @@ export function MediaCard({
   const [target, setTarget] = useState<ProjectId>(others[0]?.id ?? "phuket")
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [editingTitle, setEditingTitle] = useState(false)
-  const [title, setTitle] = useState(item.title)
+  const [draft, setDraft] = useState<string | null>(null)
+  const [playing, setPlaying] = useState(false)
+  const titleRef = useRef<HTMLInputElement>(null)
+  const editingTitle = draft !== null || focusTitle
+  const title = draft ?? item.title
   const [keywords, setKeywords] = useState(item.keywords ?? "")
   const uploaded = item.createdAt ? formatSavedDate(item.createdAt) : ""
   const keywordList = keywords
     .split(",")
     .map((part) => part.trim())
     .filter(Boolean)
+
+  useEffect(() => {
+    if (focusTitle) {
+      titleRef.current?.focus()
+      titleRef.current?.select()
+    }
+  }, [focusTitle])
 
   async function saveDetails(next: { title?: string; keywords?: string }) {
     setBusy(true)
@@ -47,14 +65,16 @@ export function MediaCard({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: item.id, ...next }),
       })
-      const body = (await response.json()) as { error?: string }
+      const body = (await response.json()) as { error?: string; title?: string | null }
       if (!response.ok) {
         throw new Error(body.error || "Could not save that change.")
       }
-      setEditingTitle(false)
+      setDraft(null)
       onChanged?.()
+      return true
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not save that change.")
+      return false
     } finally {
       setBusy(false)
     }
@@ -113,14 +133,30 @@ export function MediaCard({
   }
 
   return (
-    <Card className="h-full" data-media-type={item.mediaType} data-project={item.projectId}>
-      {item.mediaType === "video" && playbackUrl ? (
+    <Card
+      className={highlighted ? "h-full ring-2 ring-primary" : "h-full"}
+      data-media-type={item.mediaType}
+      data-project={item.projectId}
+      data-media-id={item.id}
+    >
+      {playing && item.mediaType === "video" && playbackUrl ? (
         <video
           controls
-          preload="none"
+          autoPlay
           src={playbackUrl}
           className="aspect-video w-full bg-black object-contain"
         />
+      ) : item.poster && item.mediaType === "video" ? (
+        <button type="button" className="block w-full" onClick={() => playbackUrl && setPlaying(true)}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={item.poster}
+            alt=""
+            width={640}
+            height={360}
+            className="aspect-video w-full object-cover"
+          />
+        </button>
       ) : item.poster ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -130,6 +166,14 @@ export function MediaCard({
           height={360}
           className="aspect-video w-full object-cover"
         />
+      ) : item.mediaType === "video" && playbackUrl ? (
+        <button
+          type="button"
+          className="flex aspect-video w-full items-center justify-center bg-muted text-sm text-muted-foreground"
+          onClick={() => setPlaying(true)}
+        >
+          Play
+        </button>
       ) : (
         <div className="flex aspect-video w-full items-center justify-center bg-muted text-sm text-muted-foreground">
           No preview
@@ -211,7 +255,24 @@ export function MediaCard({
               void saveDetails({ title })
             }}
           >
-            <Input value={title} onChange={(event) => setTitle(event.target.value)} className="h-10" />
+            <Input
+              ref={titleRef}
+              value={title}
+              onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key !== "Tab" || event.shiftKey || !onTabNext) {
+                  return
+                }
+                event.preventDefault()
+                void saveDetails({ title }).then((saved) => {
+                  if (saved) {
+                    onTabNext()
+                  }
+                })
+              }}
+              className="h-10"
+            />
+            <p className="text-xs text-muted-foreground">Enter saves. Tab saves and moves to the next name.</p>
             <div className="flex gap-2">
               <Button type="submit" disabled={busy}>
                 Save name
@@ -220,8 +281,7 @@ export function MediaCard({
                 type="button"
                 variant="outline"
                 onClick={() => {
-                  setTitle(item.title)
-                  setEditingTitle(false)
+                  setDraft(null)
                 }}
               >
                 Cancel
@@ -229,7 +289,7 @@ export function MediaCard({
             </div>
           </form>
         ) : (
-          <button type="button" className="text-left" onClick={() => setEditingTitle(true)}>
+          <button type="button" className="text-left" onClick={() => setDraft(item.title)}>
             <CardTitle>{item.title}</CardTitle>
             <span className="text-xs text-muted-foreground">Click to rename</span>
           </button>
@@ -243,7 +303,7 @@ export function MediaCard({
           </p>
         ) : null}
         {item.sourceTitle ? (
-          <p className="text-sm text-muted-foreground">Cut from {item.sourceTitle}</p>
+          <p className="text-sm font-medium">Part of: {item.sourceTitle}</p>
         ) : null}
         <form
           className="flex flex-col gap-2"
@@ -270,6 +330,7 @@ export function MediaCard({
             item={item}
             parts={parts}
             onChanged={() => onChanged?.()}
+            onShowInLibrary={onShowInLibrary}
             onDeleteSource={async () => {
               const response = await fetch("/api/media/delete", {
                 method: "POST",

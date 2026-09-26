@@ -25,18 +25,27 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "That file could not be found." }, { status: 400 })
   }
 
-  const existing = await supabase
+  const withThumb = await supabase
     .from("media_items")
-    .select("id, storage_path")
+    .select("id, storage_path, thumbnail_path")
     .eq("id", id)
     .maybeSingle()
+  const existing = withThumb.error
+    ? await supabase.from("media_items").select("id, storage_path").eq("id", id).maybeSingle()
+    : withThumb
 
   if (existing.error || !existing.data) {
     return NextResponse.json({ error: "That file is not in the library." }, { status: 404 })
   }
 
   const storagePath = String(existing.data.storage_path ?? "")
-  const removed = await supabase.storage.from(MEDIA_BUCKET).remove([storagePath])
+  const thumbnailPath =
+    "thumbnail_path" in existing.data && typeof existing.data.thumbnail_path === "string"
+      ? existing.data.thumbnail_path
+      : ""
+  const removed = await supabase.storage
+    .from(MEDIA_BUCKET)
+    .remove(thumbnailPath ? [storagePath, thumbnailPath] : [storagePath])
   if (removed.error) {
     return NextResponse.json(
       { error: "Could not delete the file from Storage. It is still in the library." },

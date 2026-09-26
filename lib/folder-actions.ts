@@ -4,7 +4,7 @@ import type { ProjectId } from "@/lib/projects"
 import { getSupabaseAdmin } from "@/lib/supabase-admin"
 
 export const FOLDER_SCHEMA_MESSAGE =
-  "Run supabase/schema-update.sql once in the Supabase SQL editor, then try again."
+  "Database update needed. Use the copy button in the library banner, paste the SQL in the Supabase SQL editor, and click Run."
 
 const UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i

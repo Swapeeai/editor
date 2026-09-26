@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { NOT_CONNECTED_MESSAGE } from "@/lib/supabase"
 import { getSupabaseAdmin } from "@/lib/supabase-admin"
+import { uniqueTitle } from "@/lib/unique-title"
 
 export const dynamic = "force-dynamic"
 
@@ -8,7 +9,7 @@ const UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 const SCHEMA_MESSAGE =
-  "Run supabase/schema-update.sql once in the Supabase SQL editor, then try again."
+  "Database update needed. Use the copy button in the library banner, paste the SQL in the Supabase SQL editor, and click Run."
 
 function cleanTitle(value: string) {
   return value.replace(/[\u0000-\u001f]/g, "").trim().slice(0, 120)
@@ -65,6 +66,28 @@ export async function POST(request: Request) {
   }
 
   if (changes.title) {
+    const current = await supabase
+      .from("media_items")
+      .select("project_id")
+      .eq("id", id)
+      .maybeSingle()
+    const projectId =
+      current.data && typeof current.data.project_id === "string" ? current.data.project_id : ""
+    if (projectId) {
+      const others = await supabase
+        .from("media_items")
+        .select("title")
+        .eq("project_id", projectId)
+        .neq("id", id)
+      if (!others.error) {
+        const taken = (others.data ?? []).flatMap((row) =>
+          typeof (row as { title?: unknown }).title === "string"
+            ? [(row as { title: string }).title]
+            : [],
+        )
+        changes.title = uniqueTitle(changes.title, taken)
+      }
+    }
     const renamed = await supabase
       .from("media_items")
       .update({ title: changes.title })

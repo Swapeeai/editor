@@ -1,5 +1,5 @@
 -- Paste this once in the Supabase SQL editor, then click Run.
--- It adds the Twelve Labs columns, keywords, folders, reviewed flag, approved moments, video length, index usage, and which video a cut came from.
+-- It adds the Twelve Labs columns, keywords, folders, reviewed flag, approved moments, video length, index usage, which video a cut came from, and thumbnail paths.
 -- It does not delete or rename anything. Safe to run if some of it already exists.
 -- Do not run supabase/schema.sql again.
 
@@ -124,3 +124,6 @@ end $$;
 
 create index if not exists media_items_source_idx
   on public.media_items (source_media_id);
+
+alter table public.media_items
+  add column if not exists thumbnail_path text;

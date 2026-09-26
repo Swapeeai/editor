@@ -26,6 +26,7 @@ export async function GET(request: Request) {
       keywordsSchema: false,
       reviewedSchema: false,
       foldersSchema: false,
+      thumbnailSchema: false,
       folders: [],
       items: [],
     })
@@ -40,6 +41,7 @@ export async function GET(request: Request) {
       keywordsSchema: listed.keywordsSchema,
       reviewedSchema: listed.reviewedSchema,
       foldersSchema: listed.foldersSchema,
+      thumbnailSchema: listed.thumbnailSchema,
       folders: listed.folders,
       items: listed.items.map(toPublicItem),
     })

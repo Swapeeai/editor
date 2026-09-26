@@ -18,11 +18,13 @@ export function CutClip({
   parts,
   onChanged,
   onDeleteSource,
+  onShowInLibrary,
 }: {
   item: SampleMedia
   parts: SampleMedia[]
   onChanged: () => void
   onDeleteSource: () => Promise<void>
+  onShowInLibrary?: (id: string) => void
 }) {
   const playbackUrl = item.playbackUrl ?? ""
   const [open, setOpen] = useState(false)
@@ -33,6 +35,7 @@ export function CutClip({
   const title = customTitle ?? defaultTitle(item.title, start, end)
   const [progress, setProgress] = useState<string | null>(null)
   const [note, setNote] = useState<string | null>(null)
+  const [savedPart, setSavedPart] = useState<{ id: string; title: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   function setStartValue(next: number) {
@@ -56,6 +59,7 @@ export function CutClip({
     setProgress("Opening the video…")
     setError(null)
     setNote(null)
+    setSavedPart(null)
     try {
       const response = await fetch("/api/media/cut", {
         method: "POST",
@@ -88,6 +92,8 @@ export function CutClip({
             done?: boolean
             warning?: string | null
             mode?: string
+            id?: string
+            title?: string
           }
           if (event.error) {
             throw new Error(event.error)
@@ -97,8 +103,12 @@ export function CutClip({
           }
           if (event.done) {
             saved = true
+            const savedTitle = event.title || title
+            if (event.id) {
+              setSavedPart({ id: event.id, title: savedTitle })
+            }
             const how = event.mode === "copy" ? "Copied the picture without re-encoding." : "Re-encoded this part so the cut is exact."
-            setNote(event.warning ? `${how} ${event.warning}` : `${how} Saved “${title}”.`)
+            setNote(event.warning ? `${how} ${event.warning}` : `${how} Saved “${savedTitle}”.`)
           }
         }
       }
@@ -261,9 +271,14 @@ export function CutClip({
         {progress ? progress : "Save this part"}
       </Button>
       {note ? (
-        <p className="text-sm text-muted-foreground" role="status">
-          {note}
-        </p>
+        <div className="flex flex-col items-start gap-2" role="status">
+          <p className="text-sm text-muted-foreground">{note}</p>
+          {savedPart && onShowInLibrary ? (
+            <Button type="button" variant="outline" onClick={() => onShowInLibrary(savedPart.id)}>
+              Show in library
+            </Button>
+          ) : null}
+        </div>
       ) : null}
       {error ? (
         <p className="text-sm font-medium text-destructive" role="alert">

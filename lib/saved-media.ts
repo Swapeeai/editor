@@ -21,6 +21,8 @@ export type SavedMedia = {
   reviewedAt?: string | null
   sourceMediaId?: string | null
   sourceTitle?: string | null
+  thumbnailPath?: string | null
+  thumbnailUrl?: string | null
 }
 
 export type MediaRow = {
@@ -40,6 +42,7 @@ export type MediaRow = {
   reviewed_at?: string | null
   source_media_id?: string | null
   source_title?: string | null
+  thumbnail_path?: string | null
 }
 
 export function safeFileName(name: string) {
@@ -131,6 +134,8 @@ export function rowToSavedMedia(
     reviewedAt: typeof row.reviewed_at === "string" ? row.reviewed_at : null,
     sourceMediaId: typeof row.source_media_id === "string" ? row.source_media_id : null,
     sourceTitle: typeof row.source_title === "string" ? row.source_title : null,
+    thumbnailPath: typeof row.thumbnail_path === "string" ? row.thumbnail_path : null,
+    thumbnailUrl: null,
     indexStatus:
       row.index_status === "pending" ||
       row.index_status === "indexing" ||
@@ -170,7 +175,12 @@ export function savedMediaAsClip(item: SavedMedia): SampleMedia {
     sourceMediaId: item.sourceMediaId ?? null,
     sourceTitle: item.sourceTitle ?? null,
     durationSeconds: item.durationSeconds ?? null,
-    poster: item.mediaType === "photo" && item.signedUrl ? item.signedUrl : "",
+    poster:
+      item.mediaType === "video"
+        ? (item.thumbnailUrl ?? "")
+        : item.mediaType === "photo" && item.signedUrl
+          ? item.signedUrl
+          : "",
     fileName: item.fileName,
     playbackUrl: item.signedUrl,
     createdAt: item.createdAt,

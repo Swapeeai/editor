@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { ConvertHeic } from "@/components/convert-heic"
+import { SchemaBanner } from "@/components/schema-banner"
 import { Button } from "@/components/ui/button"
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -9,6 +10,7 @@ import { MediaCard } from "@/components/media-card"
 import { useProject } from "@/components/project-provider"
 import { useSearchQuery } from "@/components/search-provider"
 import { useProjectMedia, type LibraryFolder } from "@/components/use-project-media"
+import { groupWithParts } from "@/lib/group-parts"
 import { savedMediaAsClip, type SavedMedia } from "@/lib/saved-media"
 import { filterMediaList, type MediaFilter } from "@/lib/sample-media"
 
@@ -45,7 +47,11 @@ async function postJson(url: string, payload: unknown) {
   })
   const body = (await response.json()) as { error?: string; message?: string; ok?: boolean }
   if (!response.ok || body.error) {
-    throw new Error(body.error || body.message || "That did not work.")
+    const raw = body.error || body.message || "That did not work."
+    const friendly = /relation |column |syntax error|schema cache|postgres|violates|duplicate key/i.test(raw)
+      ? "Database update needed. Use the copy button in the banner, paste the SQL in the Supabase SQL editor, and click Run."
+      : raw
+    throw new Error(friendly)
   }
   return body
 }
@@ -93,7 +99,7 @@ export function LibraryGrid() {
 }
 
 function LibraryBrowser() {
-  const { query } = useSearchQuery()
+  const { query, setQuery } = useSearchQuery()
   const { projectId, project } = useProject()
   const media = useProjectMedia(projectId)
   const [mediaFilter, setMediaFilter] = useState<MediaFilter>("all")
@@ -105,6 +111,10 @@ function LibraryBrowser() {
   const [rename, setRename] = useState("")
   const [bulkKeyword, setBulkKeyword] = useState("")
   const [bulkFolderId, setBulkFolderId] = useState("")
+  const [pattern, setPattern] = useState("")
+  const [clipFilter, setClipFilter] = useState<"all" | "parts">("all")
+  const [highlightId, setHighlightId] = useState<string | null>(null)
+  const [focusId, setFocusId] = useState<string | null>(null)
   const [note, setNote] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -123,8 +133,7 @@ function LibraryBrowser() {
   )
   const reload = media.reload
 
-  const pageKey = `${query}|${mediaFilter}|${sortOrder}|${folderView}`
-  const page = pageState.key === pageKey ? pageState.page : 0
+  const pageKey = `${query}|${mediaFilter}|${sortOrder}|${folderView}|${clipFilter}`
   function setPage(next: number) {
     setPageState({ key: pageKey, page: next })
   }
@@ -189,9 +198,21 @@ function LibraryBrowser() {
         (name) => name.toLowerCase() === activeFolder?.name.toLowerCase(),
       )
     })
-    return filterMediaList(inFolder.map(savedMediaAsClip), query, mediaFilter)
-  }, [activeFolder?.name, folderView, media.items, mediaFilter, query, sortOrder])
+    const matched = filterMediaList(inFolder.map(savedMediaAsClip), query, mediaFilter)
+    const narrowed =
+      clipFilter === "parts"
+        ? matched.filter((item) => item.sourceMediaId || item.sourceTitle)
+        : matched
+    return groupWithParts(narrowed)
+  }, [activeFolder?.name, clipFilter, folderView, media.items, mediaFilter, query, sortOrder])
 
+  const highlightIndex = highlightId ? filtered.findIndex((item) => item.id === highlightId) : -1
+  const page =
+    pageState.key === pageKey
+      ? pageState.page
+      : highlightIndex >= 0
+        ? Math.floor(highlightIndex / PAGE_SIZE)
+        : 0
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const safePage = Math.min(page, pageCount - 1)
   const visible = filtered.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE)
@@ -200,6 +221,13 @@ function LibraryBrowser() {
     (item) => selected.has(item.id) && item.mediaType === "video" && item.indexStatus !== "ready",
   )
   const trimmed = query.trim()
+
+  useEffect(() => {
+    if (!highlightId) {
+      return
+    }
+    document.querySelector(`[data-media-id="${highlightId}"]`)?.scrollIntoView({ block: "center" })
+  }, [highlightId, safePage])
 
   function toggle(id: string) {
     setSelected((current) => {
@@ -296,6 +324,72 @@ function LibraryBrowser() {
       setNote(`Added “${keyword}” to ${selectedIds.length} ${selectedIds.length === 1 ? "file" : "files"}.`)
       reload()
     })
+  }
+
+  async function renameWithPattern() {
+    const name = pattern.trim()
+    if (!name || selectedIds.length === 0) {
+      return
+    }
+    await withBusy(async () => {
+      await postJson("/api/media/bulk", { action: "rename", ids: selectedIds, pattern: name })
+      setNote(`Renamed ${selectedIds.length} ${selectedIds.length === 1 ? "file" : "files"}.`)
+      reload()
+    })
+  }
+
+  async function generateThumbs() {
+    const missing = media.items.filter((item) => item.mediaType === "video" && !item.thumbnailUrl)
+    if (missing.length === 0) {
+      setNote("Every video already has a still.")
+      return
+    }
+    await withBusy(async () => {
+      let done = 0
+      let failed = 0
+      for (const item of missing) {
+        setNote(`Generating thumbnails… ${done + failed + 1} of ${missing.length}`)
+        const response = await fetch("/api/media/thumbnail", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: item.id }),
+        })
+        const body = (await response.json()) as { error?: string; schema?: boolean }
+        if (body.schema) {
+          throw new Error(body.error || "Database update needed.")
+        }
+        if (!response.ok) {
+          failed += 1
+        } else {
+          done += 1
+        }
+      }
+      setNote(
+        failed > 0
+          ? `Made ${done} stills. ${failed} ${failed === 1 ? "video" : "videos"} could not be read.`
+          : `Made a still for ${done} ${done === 1 ? "video" : "videos"}.`,
+      )
+      reload()
+    })
+  }
+
+  function showInLibrary(id: string) {
+    setQuery("")
+    setFolderView("all")
+    setMediaFilter("all")
+    setClipFilter("all")
+    setHighlightId(id)
+  }
+
+  function tabNext(id: string) {
+    const index = filtered.findIndex((item) => item.id === id)
+    const next = filtered[index + 1]
+    if (!next) {
+      setFocusId(null)
+      return
+    }
+    setPage(Math.floor((index + 1) / PAGE_SIZE))
+    setFocusId(next.id)
   }
 
   async function deleteSelected() {
@@ -408,19 +502,15 @@ function LibraryBrowser() {
         {media.status === "ready" && media.configured && media.aiSearch === false ? (
           <p className="text-sm text-muted-foreground">AI search not connected yet</p>
         ) : null}
-        {media.status === "ready" && media.configured && media.aiSearch && !media.indexSchema ? (
-          <p className="text-sm text-muted-foreground">
-            AI search is connected. Run supabase/schema-update.sql once in the Supabase SQL editor, then choose which videos to prepare.
-          </p>
-        ) : null}
-        {media.status === "ready" && media.configured && media.foldersSchema === false ? (
-          <p className="text-sm text-muted-foreground">
-            Folders need supabase/schema-update.sql. Run it once in the Supabase SQL editor. It is safe if you already ran the earlier Twelve Labs SQL.
-          </p>
-        ) : null}
       </div>
 
-      {media.foldersSchema ? (
+      {media.status === "ready" &&
+      media.configured &&
+      (media.foldersSchema === false || media.thumbnailSchema === false || media.indexSchema === false) ? (
+        <SchemaBanner />
+      ) : null}
+
+      {media.status === "ready" && media.configured ? (
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap gap-2" role="group" aria-label="Folders">
             <Button
@@ -530,6 +620,18 @@ function LibraryBrowser() {
           <Button type="button" variant="outline" disabled={busy || selectedIds.length === 0} onClick={() => void deleteSelected()}>
             Delete selected
           </Button>
+          <Input
+            value={pattern}
+            onChange={(event) => setPattern(event.target.value)}
+            placeholder="Rename with pattern, such as beach"
+            className="h-10 sm:max-w-xs"
+          />
+          <Button type="button" variant="outline" disabled={busy || !pattern.trim() || selectedIds.length === 0} onClick={() => void renameWithPattern()}>
+            Rename with pattern
+          </Button>
+          <Button type="button" variant="outline" disabled={busy} onClick={() => void generateThumbs()}>
+            Generate missing thumbnails ({media.items.filter((item) => item.mediaType === "video" && !item.thumbnailUrl).length})
+          </Button>
         </div>
         {media.aiSearch && media.indexSchema ? (
           <div className="flex flex-wrap gap-2">
@@ -569,6 +671,14 @@ function LibraryBrowser() {
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex flex-wrap gap-2" role="group" aria-label="Media type">
+          <Button
+            type="button"
+            variant={clipFilter === "parts" ? "default" : "outline"}
+            aria-pressed={clipFilter === "parts"}
+            onClick={() => setClipFilter((current) => (current === "parts" ? "all" : "parts"))}
+          >
+            Cut parts
+          </Button>
           {tabs.map((tab) => {
             const pressed = mediaFilter === tab.id
             return (
@@ -619,6 +729,8 @@ function LibraryBrowser() {
             <CardDescription>
               {trimmed
                 ? `Nothing in ${project.name} matches “${trimmed}”.`
+                : clipFilter === "parts"
+                  ? "No cut parts in this view."
                 : folderView === "unsorted"
                   ? "Every file in this project is already in a folder."
                   : activeFolder
@@ -643,6 +755,10 @@ function LibraryBrowser() {
                   selected={selected.has(item.id)}
                   onToggle={() => toggle(item.id)}
                   onChanged={media.reload}
+                  focusTitle={focusId === item.id}
+                  highlighted={highlightId === item.id}
+                  onTabNext={() => tabNext(item.id)}
+                  onShowInLibrary={showInLibrary}
                 />
               </li>
             ))}

@@ -2,6 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { cutVideoFile, probeDuration } from "@/lib/cut-clip"
+import { thumbnailFromFile } from "@/lib/thumbnail"
 import { isProjectId } from "@/lib/projects"
 import { NOT_CONNECTED_MESSAGE } from "@/lib/supabase"
 import { getSupabaseAdmin, MEDIA_BUCKET } from "@/lib/supabase-admin"
@@ -14,7 +15,7 @@ const UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 const SCHEMA_MESSAGE =
-  "Run supabase/schema-update.sql once in the Supabase SQL editor, then try again. The part was still saved."
+  "Database update needed. The part was still saved. Use the copy button in the library banner, paste the SQL in the Supabase SQL editor, and click Run."
 
 function cleanTitle(value: string) {
   return value.replace(/[\u0000-\u001f]/g, "").trim().slice(0, 120)
@@ -202,6 +203,12 @@ export async function POST(request: Request) {
               warning = warning ?? "The part was saved, but it could not be added to the same folders."
             }
           }
+        }
+
+        try {
+          await thumbnailFromFile(partId, source.project_id, cut.path, seconds)
+        } catch {
+          // The part is already in the library.
         }
 
         send({

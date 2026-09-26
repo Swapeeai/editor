@@ -18,6 +18,7 @@ export const MEDIA_SELECT_WITH_INDEX =
 const MEDIA_SELECT_FULL = `${MEDIA_SELECT_WITH_INDEX}, keywords, duration_seconds`
 const MEDIA_SELECT_REVIEWED = `${MEDIA_SELECT_FULL}, reviewed_at`
 const MEDIA_SELECT_SOURCE = `${MEDIA_SELECT_REVIEWED}, source_media_id, source_title`
+const MEDIA_SELECT_THUMB = `${MEDIA_SELECT_SOURCE}, thumbnail_path`
 const MEDIA_SELECT_KEYWORDS = `${MEDIA_SELECT}, keywords`
 
 export type LibraryFolder = {
@@ -93,6 +94,8 @@ export function toPublicItem(item: LibraryItem): SavedMedia {
     reviewedAt: item.reviewedAt ?? null,
     sourceMediaId: item.sourceMediaId ?? null,
     sourceTitle: item.sourceTitle ?? null,
+    thumbnailPath: item.thumbnailPath ?? null,
+    thumbnailUrl: item.thumbnailUrl ?? null,
   }
 }
 
@@ -111,19 +114,26 @@ async function signRows(
   const supabase = getSupabaseAdmin()
   const signedByPath = new Map<string, string>()
   if (supabase && rows.length > 0) {
-    const signed = await supabase.storage.from(MEDIA_BUCKET).createSignedUrls(
-      rows.map((row) => row.storage_path),
-      60 * 60,
-    )
+    const paths = [
+      ...rows.map((row) => row.storage_path),
+      ...rows.flatMap((row) =>
+        typeof row.thumbnail_path === "string" && row.thumbnail_path ? [row.thumbnail_path] : [],
+      ),
+    ]
+    const signed = await supabase.storage.from(MEDIA_BUCKET).createSignedUrls(paths, 60 * 60)
     for (const entry of signed.data ?? []) {
       if (entry.path && entry.signedUrl) {
         signedByPath.set(entry.path, entry.signedUrl)
       }
     }
   }
-  return rows.map((row) =>
-    rowToLibraryItem(row, signedByPath.get(row.storage_path) ?? null),
-  )
+  return rows.map((row) => {
+    const item = rowToLibraryItem(row, signedByPath.get(row.storage_path) ?? null)
+    const thumb = typeof row.thumbnail_path === "string" ? row.thumbnail_path : ""
+    item.thumbnailPath = thumb || null
+    item.thumbnailUrl = thumb ? (signedByPath.get(thumb) ?? null) : null
+    return item
+  })
 }
 
 function missingColumn(message: string) {
@@ -210,18 +220,20 @@ export async function listProjectItems(projectId: ProjectId) {
       keywordsSchema: false,
       reviewedSchema: false,
       foldersSchema: false,
+      thumbnailSchema: false,
       folders: [] as LibraryFolder[],
       items: [] as LibraryItem[],
     }
   }
 
   const attempts = [
-    { select: MEDIA_SELECT_SOURCE, indexSchema: true, keywordsSchema: true, reviewedSchema: true },
-    { select: MEDIA_SELECT_REVIEWED, indexSchema: true, keywordsSchema: true, reviewedSchema: true },
-    { select: MEDIA_SELECT_FULL, indexSchema: true, keywordsSchema: true, reviewedSchema: false },
-    { select: MEDIA_SELECT_WITH_INDEX, indexSchema: true, keywordsSchema: false, reviewedSchema: false },
-    { select: MEDIA_SELECT_KEYWORDS, indexSchema: false, keywordsSchema: true, reviewedSchema: false },
-    { select: MEDIA_SELECT, indexSchema: false, keywordsSchema: false, reviewedSchema: false },
+    { select: MEDIA_SELECT_THUMB, indexSchema: true, keywordsSchema: true, reviewedSchema: true, thumbnailSchema: true },
+    { select: MEDIA_SELECT_SOURCE, indexSchema: true, keywordsSchema: true, reviewedSchema: true, thumbnailSchema: false },
+    { select: MEDIA_SELECT_REVIEWED, indexSchema: true, keywordsSchema: true, reviewedSchema: true, thumbnailSchema: false },
+    { select: MEDIA_SELECT_FULL, indexSchema: true, keywordsSchema: true, reviewedSchema: false, thumbnailSchema: false },
+    { select: MEDIA_SELECT_WITH_INDEX, indexSchema: true, keywordsSchema: false, reviewedSchema: false, thumbnailSchema: false },
+    { select: MEDIA_SELECT_KEYWORDS, indexSchema: false, keywordsSchema: true, reviewedSchema: false, thumbnailSchema: false },
+    { select: MEDIA_SELECT, indexSchema: false, keywordsSchema: false, reviewedSchema: false, thumbnailSchema: false },
   ]
 
   let lastMessage = ""
@@ -239,6 +251,7 @@ export async function listProjectItems(projectId: ProjectId) {
         keywordsSchema: attempt.keywordsSchema,
         reviewedSchema: attempt.reviewedSchema,
         foldersSchema: withFolders.foldersSchema,
+        thumbnailSchema: attempt.thumbnailSchema,
         folders: withFolders.folders,
         items: withFolders.items,
       }

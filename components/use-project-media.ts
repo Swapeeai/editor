@@ -17,6 +17,7 @@ export type ProjectMediaState = {
   aiSearch: boolean | null
   indexSchema: boolean | null
   foldersSchema: boolean | null
+  thumbnailSchema: boolean | null
   folders: LibraryFolder[]
   items: SavedMedia[]
   error: string | null
@@ -31,6 +32,7 @@ export function useProjectMedia(projectId: ProjectId): ProjectMediaState & { rel
     aiSearch: null,
     indexSchema: null,
     foldersSchema: null,
+    thumbnailSchema: null,
     folders: [],
     items: [],
     error: null,
@@ -46,6 +48,7 @@ export function useProjectMedia(projectId: ProjectId): ProjectMediaState & { rel
           aiSearch?: boolean
           indexSchema?: boolean
           foldersSchema?: boolean
+          thumbnailSchema?: boolean
           folders?: LibraryFolder[]
           items?: SavedMedia[]
           error?: string
@@ -60,6 +63,7 @@ export function useProjectMedia(projectId: ProjectId): ProjectMediaState & { rel
           aiSearch: Boolean(body.aiSearch),
           indexSchema: Boolean(body.indexSchema),
           foldersSchema: Boolean(body.foldersSchema),
+          thumbnailSchema: Boolean(body.thumbnailSchema),
           folders: Array.isArray(body.folders) ? body.folders : [],
           items: Array.isArray(body.items) ? body.items : [],
           error: null,
@@ -76,6 +80,7 @@ export function useProjectMedia(projectId: ProjectId): ProjectMediaState & { rel
           aiSearch: null,
           indexSchema: null,
           foldersSchema: null,
+          thumbnailSchema: null,
           folders: [],
           items: [],
           error:
@@ -96,6 +101,7 @@ export function useProjectMedia(projectId: ProjectId): ProjectMediaState & { rel
       aiSearch: null,
       indexSchema: null,
       foldersSchema: null,
+      thumbnailSchema: null,
       folders: [],
       items: [],
       error: null,

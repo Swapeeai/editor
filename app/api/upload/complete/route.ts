@@ -1,4 +1,8 @@
+import { mkdtemp, rm, writeFile } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { NextResponse } from "next/server"
+import { thumbnailFromFile } from "@/lib/thumbnail"
 import { isProjectId } from "@/lib/projects"
 import {
   mediaTypeFromFile,
@@ -155,6 +159,26 @@ export async function POST(request: Request) {
 
   const item = rowToSavedMedia(inserted.data as MediaRow, signed.data?.signedUrl ?? null)
   item.durationSeconds = durationSeconds
+
+  if (mediaType === "video" && signed.data?.signedUrl) {
+    const dir = await mkdtemp(join(tmpdir(), "retreat-upload-thumb-"))
+    try {
+      const filePath = join(dir, "video.mp4")
+      const downloaded = await fetch(signed.data.signedUrl)
+      if (downloaded.ok) {
+        await writeFile(filePath, Buffer.from(await downloaded.arrayBuffer()))
+        const stored = await thumbnailFromFile(id, projectId, filePath, durationSeconds)
+        if (stored.ok) {
+          item.thumbnailPath = stored.thumbnailPath
+          item.thumbnailUrl = stored.thumbnailUrl
+        }
+      }
+    } catch {
+      // The file is already in the library. A missing still can be generated later.
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  }
 
   return NextResponse.json({ item })
 }

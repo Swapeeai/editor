@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { SchemaBanner } from "@/components/schema-banner"
 import { Button } from "@/components/ui/button"
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -225,11 +226,7 @@ function ReviewBody() {
         </Button>
       </div>
 
-      {media.foldersSchema === false ? (
-        <p className="text-sm text-muted-foreground">
-          Folders and the reviewed flag need supabase/schema-update.sql. Run it once in the Supabase SQL editor.
-        </p>
-      ) : null}
+      {media.foldersSchema === false ? <SchemaBanner /> : null}
 
       {queue.length === 0 || !current ? (
         <Card>
