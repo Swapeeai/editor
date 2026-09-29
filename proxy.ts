@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server"
 import { isAllowedEmail, productionRequiresLogin, safeNextPath } from "@/lib/access"
 
 const OPEN_PATH =
-  /^\/login$|^\/auth\/callback$|^\/api\/auth\/send$|^\/api\/auth\/signout$/
+  /^\/login$|^\/auth\/callback$|^\/api\/auth\/send$|^\/api\/auth\/signout$|^\/api\/auth\/callback$/
 
 export async function proxy(request: NextRequest) {
   if (!productionRequiresLogin()) {
