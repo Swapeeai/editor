@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { settingsBlocked } from "@/lib/settings-guard"
 import { isTwelveLabsConfigured } from "@/lib/twelvelabs"
+import { productionGate } from "@/lib/production-gate"
 
 export const dynamic = "force-dynamic"
 
@@ -98,6 +99,8 @@ async function testGoogle() {
 }
 
 export async function POST(request: Request) {
+  const denied = await productionGate()
+  if (denied) return denied
   const blocked = settingsBlocked(request)
   if (blocked) {
     return blocked

@@ -7,10 +7,13 @@ import {
   type SettingKey,
 } from "@/lib/local-settings"
 import { settingsBlocked } from "@/lib/settings-guard"
+import { productionGate } from "@/lib/production-gate"
 
 export const dynamic = "force-dynamic"
 
 export async function GET(request: Request) {
+  const denied = await productionGate()
+  if (denied) return denied
   const blocked = settingsBlocked(request)
   if (blocked) {
     return blocked
@@ -30,6 +33,8 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const denied = await productionGate()
+  if (denied) return denied
   const blocked = settingsBlocked(request)
   if (blocked) {
     return blocked

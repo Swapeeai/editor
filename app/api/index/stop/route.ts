@@ -2,10 +2,13 @@ import { NextResponse } from "next/server"
 import { stopPending } from "@/lib/ai-index"
 import { IndexSchemaError } from "@/lib/media-db"
 import { isProjectId } from "@/lib/projects"
+import { productionGate } from "@/lib/production-gate"
 
 export const dynamic = "force-dynamic"
 
 export async function POST(request: Request) {
+  const denied = await productionGate()
+  if (denied) return denied
   let body: unknown
   try {
     body = await request.json()

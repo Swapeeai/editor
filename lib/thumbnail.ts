@@ -36,7 +36,7 @@ function run(args: string[]) {
 async function brightnessOf(jpegPath: string, dir: string) {
   const rawPath = join(dir, "gray.raw")
   await run(["-y", "-i", jpegPath, "-vf", "scale=16:16,format=gray", "-f", "rawvideo", rawPath])
-  const raw = await readFile(rawPath)
+  const raw = await readFile(/* turbopackIgnore: true */ rawPath)
   if (raw.length === 0) {
     return 0
   }
@@ -92,7 +92,7 @@ export async function extractThumbnail(inputPath: string, durationHint?: number 
     if (!chosen) {
       throw new Error("Could not read a frame from this video.")
     }
-    return readFile(chosen.jpegPath)
+    return readFile(/* turbopackIgnore: true */ chosen.jpegPath)
   } finally {
     await rm(dir, { recursive: true, force: true })
   }

@@ -13,6 +13,7 @@ import {
 } from "@/lib/twelvelabs"
 import { ensureProjectIndex } from "@/lib/ai-index"
 import { hitIsStrong } from "@/lib/moment-pick"
+import { productionGate } from "@/lib/production-gate"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
@@ -61,6 +62,8 @@ async function searchFallback(projectId: string, videoId: string, mediaItemId: s
 }
 
 export async function POST(request: Request) {
+  const denied = await productionGate()
+  if (denied) return denied
   if (!getSupabaseAdmin()) {
     return NextResponse.json({ error: NOT_CONNECTED_MESSAGE }, { status: 503 })
   }
@@ -132,6 +135,8 @@ export async function POST(request: Request) {
 }
 
 export async function GET(request: Request) {
+  const denied = await productionGate()
+  if (denied) return denied
   if (!isTwelveLabsConfigured()) {
     return NextResponse.json(
       { error: "AI search not connected yet. Add TWELVE_LABS_API_KEY, then restart the app." },

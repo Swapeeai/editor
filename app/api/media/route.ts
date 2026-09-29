@@ -2,10 +2,13 @@ import { NextResponse } from "next/server"
 import { isTwelveLabsConfigured } from "@/lib/twelvelabs"
 import { listProjectItems, toPublicItem } from "@/lib/media-db"
 import { isProjectId } from "@/lib/projects"
+import { productionGate } from "@/lib/production-gate"
 
 export const dynamic = "force-dynamic"
 
 export async function GET(request: Request) {
+  const denied = await productionGate()
+  if (denied) return denied
   const projectId = new URL(request.url).searchParams.get("project")
   if (!isProjectId(projectId)) {
     return NextResponse.json(

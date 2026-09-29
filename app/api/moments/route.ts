@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server"
 import { buildMomentScenes } from "@/lib/ai-search"
 import { isProjectId } from "@/lib/projects"
+import { productionGate } from "@/lib/production-gate"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
 
 export async function POST(request: Request) {
+  const denied = await productionGate()
+  if (denied) return denied
   let body: unknown
   try {
     body = await request.json()

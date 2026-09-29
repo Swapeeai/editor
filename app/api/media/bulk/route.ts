@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { NOT_CONNECTED_MESSAGE } from "@/lib/supabase"
 import { getSupabaseAdmin, MEDIA_BUCKET } from "@/lib/supabase-admin"
 import { patternTitles } from "@/lib/unique-title"
+import { productionGate } from "@/lib/production-gate"
 
 export const dynamic = "force-dynamic"
 
@@ -28,6 +29,8 @@ function cleanKeyword(value: string) {
 }
 
 export async function POST(request: Request) {
+  const denied = await productionGate()
+  if (denied) return denied
   const supabase = getSupabaseAdmin()
   if (!supabase) {
     return NextResponse.json({ error: NOT_CONNECTED_MESSAGE }, { status: 503 })

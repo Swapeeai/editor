@@ -1,6 +1,8 @@
 # Retreat Content Library
 
-A private library for three projects: Ibiza Pole Retreat, Phuket Pole Retreat, and Flirty Fitness. There is no login.
+A private library for three projects: Ibiza Pole Retreat, Phuket Pole Retreat, and Flirty Fitness.
+
+On your own computer, `npm run dev` stays open with no login. The online copy (a production build) requires a Supabase email sign-in link, and only addresses in `ALLOWED_EMAILS` are accepted.
 
 Pick a project, import videos from Google Photos or Google Drive (or upload a file), then Create Video and Export a vertical MP4. With a Twelve Labs key, each phrase in the direction is found as a moment inside your footage. Without the key, clips are matched by title and file name, and the library says “AI search not connected yet”.
 
@@ -24,7 +26,7 @@ On Mac or Linux, the copy command is `cp .env.example .env.local`.
 
 Open Settings in the app and paste your Supabase, Google, and Twelve Labs values. They are written to `.env.local` on this computer. Never commit `.env.local`. If you already have that file, keep it when you replace this folder.
 
-Settings has no login. The page and its save route work only while you run the app on your own computer (`npm run dev` at localhost). They are turned off in a production build, and they refuse any other host. Do not put this app on the public internet.
+Settings works only while you run the app on your own computer (`npm run dev` at localhost). A production build turns Settings off, including for someone who is signed in.
 
 Then open [http://localhost:43123](http://localhost:43123). Use that address. Google sign-in only allows `http://localhost:43123`, not `127.0.0.1`.
 
@@ -98,3 +100,34 @@ A video that Google Photos is still processing is skipped. Each file must be wit
 The table is already created if you ran `supabase/schema.sql`. The private bucket must be named `media` (lowercase). The three Supabase names in `.env.local` are `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY`. Do not put the service role key in chat or in a `NEXT_PUBLIC_` name.
 
 Stored project ids stay `ibiza`, `phuket`, and `flati`. Do not rerun the SQL to rename them.
+
+## Online copy (Render)
+
+Do this only after the sign-in code is in the GitHub repo. The app does not create the Render account for you.
+
+1. In Render, create a **Web Service** from `https://github.com/Swapeeai/editor`. Choose the **Standard** instance: **1 CPU, 2 GB RAM**. Do not choose Free. Export runs ffmpeg on the whole video and needs that memory, and a paid web service keeps a long export request open.
+2. Build command: `npm install && npm run build`
+3. Start command: `npm start`
+4. Those same commands are in `render.yaml`. `npm start` listens on Render's `PORT`.
+5. Paste the environment variable **names** from the list below. Do not commit the values. `SUPABASE_SERVICE_ROLE_KEY` and `TWELVE_LABS_API_KEY` are server-only. They must not use a `NEXT_PUBLIC_` name.
+6. Set `ALLOWED_EMAILS` to `jennyliebert@yahoo.com` (comma-separated if you add someone later). An empty list lets nobody in. Any other email is refused before a sign-in link is sent.
+7. After the service exists, open Supabase → Authentication → URL configuration. Set the site URL to the Render address, and add `https://YOUR-SERVICE.onrender.com/auth/callback` under redirect URLs. Leave Email sign-in on so the first link can create that one account. The app still refuses every other address.
+8. In Google Cloud, add the same Render address as an authorised JavaScript origin when you want Drive or Photos import online. Localhost `http://localhost:43123` stays as it is.
+9. Storage stays private. The server uses the service role. Do not add a public Storage policy.
+
+`npm run dev` on your computer does not ask you to sign in. A production build does, on every page and every API except the sign-in link itself.
+
+### Environment variable names
+
+- `ALLOWED_EMAILS`
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `TWELVE_LABS_API_KEY`
+- `NEXT_PUBLIC_GOOGLE_CLIENT_ID`
+- `NEXT_PUBLIC_GOOGLE_APP_ID`
+- `NEXT_PUBLIC_GOOGLE_API_KEY` (leave empty unless you already use it)
+- `NEXT_PUBLIC_GOOGLE_DRIVE_READONLY` (optional)
+- `NEXT_PUBLIC_MAX_UPLOAD_MB`
+
+The anon key and the Google browser values are the only `NEXT_PUBLIC_` secrets. The service role key and the Twelve Labs key are not among them.

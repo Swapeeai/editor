@@ -1,0 +1,33 @@
+# Render blueprint. Do not put secret values in this file.
+# In the dashboard, pick the Standard instance: 1 CPU, 2 GB RAM. Not Free.
+services:
+  - type: web
+    name: retreat-content-library
+    runtime: node
+    plan: standard
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /login
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: ALLOWED_EMAILS
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TWELVE_LABS_API_KEY
+        sync: false
+      - key: NEXT_PUBLIC_GOOGLE_CLIENT_ID
+        sync: false
+      - key: NEXT_PUBLIC_GOOGLE_APP_ID
+        sync: false
+      - key: NEXT_PUBLIC_GOOGLE_API_KEY
+        sync: false
+      - key: NEXT_PUBLIC_GOOGLE_DRIVE_READONLY
+        sync: false
+      - key: NEXT_PUBLIC_MAX_UPLOAD_MB
+        sync: false

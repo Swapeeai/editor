@@ -10,6 +10,7 @@ import { getSupabaseAdmin, MEDIA_BUCKET } from "@/lib/supabase-admin"
 import { clipDuration } from "@/lib/moment-timing"
 import { captionOverlayPng, titleCardPng } from "@/lib/title-card"
 import { formatUploadLimit, maxUploadBytes } from "@/lib/upload-limit"
+import { productionGate } from "@/lib/production-gate"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 300
@@ -134,6 +135,8 @@ async function writeClip(input: string, output: string, options: {
 }
 
 export async function POST(request: Request) {
+  const denied = await productionGate()
+  if (denied) return denied
   const supabase = getSupabaseAdmin()
   if (!supabase) {
     return NextResponse.json({ error: NOT_CONNECTED_MESSAGE }, { status: 503 })

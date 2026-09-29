@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { NOT_CONNECTED_MESSAGE } from "@/lib/supabase"
 import { getSupabaseAdmin, MEDIA_BUCKET } from "@/lib/supabase-admin"
+import { productionGate } from "@/lib/production-gate"
 
 export const dynamic = "force-dynamic"
 
@@ -8,6 +9,8 @@ const UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export async function POST(request: Request) {
+  const denied = await productionGate()
+  if (denied) return denied
   const supabase = getSupabaseAdmin()
   if (!supabase) {
     return NextResponse.json({ error: NOT_CONNECTED_MESSAGE }, { status: 503 })

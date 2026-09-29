@@ -3,10 +3,13 @@ import { createFolder, deleteFolder, renameFolder } from "@/lib/folder-actions"
 import { isProjectId } from "@/lib/projects"
 import { NOT_CONNECTED_MESSAGE } from "@/lib/supabase"
 import { getSupabaseAdmin } from "@/lib/supabase-admin"
+import { productionGate } from "@/lib/production-gate"
 
 export const dynamic = "force-dynamic"
 
 export async function POST(request: Request) {
+  const denied = await productionGate()
+  if (denied) return denied
   if (!getSupabaseAdmin()) {
     return NextResponse.json({ error: NOT_CONNECTED_MESSAGE }, { status: 503 })
   }

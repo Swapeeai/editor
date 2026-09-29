@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { retryMedia } from "@/lib/ai-index"
 import { IndexSchemaError } from "@/lib/media-db"
+import { productionGate } from "@/lib/production-gate"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
@@ -9,6 +10,8 @@ const UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export async function POST(request: Request) {
+  const denied = await productionGate()
+  if (denied) return denied
   let body: unknown
   try {
     body = await request.json()

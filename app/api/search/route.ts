@@ -3,11 +3,14 @@ import { searchProjectMoments } from "@/lib/ai-search"
 import { IndexSchemaError } from "@/lib/media-db"
 import { isProjectId } from "@/lib/projects"
 import { TwelveLabsError } from "@/lib/twelvelabs"
+import { productionGate } from "@/lib/production-gate"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
 
 export async function POST(request: Request) {
+  const denied = await productionGate()
+  if (denied) return denied
   let body: unknown
   try {
     body = await request.json()
