@@ -14,19 +14,27 @@ function text(value: unknown, max: number) {
   return trimmed
 }
 
+function bodyKeys(body: unknown) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return []
+  return Object.keys(body)
+}
+
+function fail(step: "json" | "missing" | "session" | "code" | "otp", keys: string[], message?: string) {
+  const payload: { error: string; keys: string[]; message?: string } = { error: step, keys }
+  if (message) payload.message = message
+  return NextResponse.json(payload, { status: 400 })
+}
+
 export async function POST(request: Request) {
   let body: unknown
   try {
     body = await request.json()
   } catch {
-    return NextResponse.json({ error: "link" }, { status: 400 })
+    return fail("json", [])
   }
 
-  const record = body as Record<string, unknown>
-  if (typeof record.error === "string" && record.error) {
-    return NextResponse.json({ error: "link" }, { status: 400 })
-  }
-
+  const keys = bodyKeys(body)
+  const record = (body ?? {}) as Record<string, unknown>
   const code = text(record.code, 2048)
   const accessToken = text(record.accessToken, 8192)
   const refreshToken = text(record.refreshToken, 4096)
@@ -36,13 +44,13 @@ export async function POST(request: Request) {
 
   const supabase = await createSessionClient()
   if (!supabase) {
-    return NextResponse.json({ error: "config" }, { status: 503 })
+    return NextResponse.json({ error: "config", keys }, { status: 503 })
   }
 
   if (code) {
     const exchanged = await supabase.auth.exchangeCodeForSession(code)
     if (exchanged.error) {
-      return NextResponse.json({ error: "link" }, { status: 400 })
+      return fail("code", keys, exchanged.error.message)
     }
   } else if (accessToken && refreshToken) {
     const session = await supabase.auth.setSession({
@@ -50,16 +58,16 @@ export async function POST(request: Request) {
       refresh_token: refreshToken,
     })
     if (session.error) {
-      return NextResponse.json({ error: "link" }, { status: 400 })
+      return fail("session", keys, session.error.message)
     }
   } else if (tokenHash) {
     const type = typeRaw && OTP_TYPES.has(typeRaw as EmailOtpType) ? (typeRaw as EmailOtpType) : "magiclink"
     const verified = await supabase.auth.verifyOtp({ token_hash: tokenHash, type })
     if (verified.error) {
-      return NextResponse.json({ error: "link" }, { status: 400 })
+      return fail("otp", keys, verified.error.message)
     }
   } else {
-    return NextResponse.json({ error: "link" }, { status: 400 })
+    return fail("missing", keys)
   }
 
   const { data } = await supabase.auth.getUser()
