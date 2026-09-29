@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { isProjectId, projects, type ProjectId } from "@/lib/projects"
+import { signedDownloadUrl, startSignedDownload } from "@/lib/browser-download"
 import { formatSavedDate } from "@/lib/saved-media"
 import type { SampleMedia } from "@/lib/sample-media"
 
@@ -99,6 +100,22 @@ export function MediaCard({
       onChanged?.()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not move that file.")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function downloadFile() {
+    if (busy) {
+      return
+    }
+    setBusy(true)
+    setError(null)
+    try {
+      const url = await signedDownloadUrl(item.id)
+      startSignedDownload(url)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not download that file.")
     } finally {
       setBusy(false)
     }
@@ -375,6 +392,9 @@ export function MediaCard({
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="outline" onClick={moveFile} disabled={busy}>
               {busy ? "Working…" : "Move"}
+            </Button>
+            <Button type="button" variant="outline" onClick={() => void downloadFile()} disabled={busy}>
+              Download
             </Button>
             <Button type="button" variant="outline" onClick={deleteFile} disabled={busy}>
               Delete

@@ -10,6 +10,7 @@ import { MediaCard } from "@/components/media-card"
 import { useProject } from "@/components/project-provider"
 import { useSearchQuery } from "@/components/search-provider"
 import { useProjectMedia, type LibraryFolder } from "@/components/use-project-media"
+import { signedDownloadUrl, startSignedDownload, wait } from "@/lib/browser-download"
 import { groupWithParts } from "@/lib/group-parts"
 import { savedMediaAsClip, type SavedMedia } from "@/lib/saved-media"
 import { filterMediaList, type MediaFilter } from "@/lib/sample-media"
@@ -392,6 +393,28 @@ function LibraryBrowser() {
     setFocusId(next.id)
   }
 
+  async function downloadSelected() {
+    if (selectedIds.length === 0) {
+      return
+    }
+    const ids = selectedIds.slice()
+    await withBusy(async () => {
+      for (let index = 0; index < ids.length; index += 1) {
+        setNote(`Downloading… ${index + 1} of ${ids.length}`)
+        const url = await signedDownloadUrl(ids[index])
+        startSignedDownload(url)
+        if (index < ids.length - 1) {
+          await wait(1500)
+        }
+      }
+      setNote(
+        ids.length === 1
+          ? "Download started."
+          : `Started ${ids.length} downloads, one after another.`,
+      )
+    })
+  }
+
   async function deleteSelected() {
     if (selectedIds.length === 0) {
       return
@@ -582,12 +605,21 @@ function LibraryBrowser() {
           <Button
             type="button"
             variant="outline"
-            onClick={() => setSelected(new Set(filtered.map((item) => item.id)))}
+            aria-label="Select all on this page"
+            onClick={() => setSelected(new Set(visible.map((item) => item.id)))}
           >
             Select all
           </Button>
           <Button type="button" variant="outline" onClick={() => setSelected(new Set())}>
             Select none
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={busy || selectedIds.length === 0}
+            onClick={() => void downloadSelected()}
+          >
+            Download ({selectedIds.length})
           </Button>
           <span className="text-sm text-muted-foreground">{selectedIds.length} selected</span>
         </div>
